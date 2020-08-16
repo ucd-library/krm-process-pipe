@@ -20,7 +20,7 @@ module.exports = {
           cell : CA_FULLDISK_CELLS
         }
       }],
-      command : 'casita update-latest-ca',
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
       options : {
         run: 'everytime'
       }
@@ -40,7 +40,7 @@ module.exports = {
           cell : CA_FULLDISK_CELLS
         }
       }],
-      command : 'casita update-latest-conus',
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
       options : {run: 'everytime'}
     },
 
@@ -58,7 +58,7 @@ module.exports = {
           band : LATEST_BANDS
         }
       }],
-      command : 'casita update-latest-fulldisk',
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
       options : {run: 'everytime'}
     },
 
@@ -70,7 +70,7 @@ module.exports = {
           cells : CA_CONUS_CELLS
         }
       }],
-      command : 'casita create-ca-conus',
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
       options : {
         dependentCount : 3,
         timeoutWindow : 60 * 2
@@ -85,7 +85,7 @@ module.exports = {
           cells : CA_FULLDISK_CELLS
         }
       }],
-      command : 'casita create-ca-fulldisk',
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
       options : {
         dependentCount : 3,
         timeoutWindow : 60 * 2
@@ -113,7 +113,7 @@ module.exports = {
       dependencies : [{
         subject : 'file:///fulldisk/:date/:time/cells/:cell/:band/image.jp2',
       }],
-      command : msg => `touch ${msg.subject}`,
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`,
     },
 
     'file:///conus/:date/:time/cells/:cell/:band/image.png' : {
@@ -121,7 +121,7 @@ module.exports = {
       dependencies : [{
         subject : 'file:///conus/:date/:time/cells/:cell/:band/image.jp2',
       }],
-      command : msg => `touch ${msg.subject}`
+      command : (msg,opts) => `touch ${opts.fs.nfsRoot}${opts.uri.pathname}`
     }
 
   }

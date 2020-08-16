@@ -1,5 +1,6 @@
 const GraphParser = require('./lib/graph-parser');
 const uuid = require('uuid');
+const config = require('../utils/lib/config');
 
 class KrmController {
 
@@ -12,6 +13,8 @@ class KrmController {
       this.state = require('../utils/lib/state/memory');
     }
 
+    this.bus.on('completed', msg => console.log(msg));
+
     this.dependencyGraph = new GraphParser(graph);
   }
 
@@ -23,7 +26,6 @@ class KrmController {
       let taskMsg = this._generateTaskMsg(task);
 
       // see if a required subject is ready
-      debugger;
       if( taskMsg.data.required.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
         taskMsg.data.ready.push(subject);
@@ -35,14 +37,28 @@ class KrmController {
         taskMsg.data.dependenciesReady = true;
 
         this.state.remove(taskMsg.id);
+
+        // handle functional commands
+        taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
+        if( typeof taskMsg.data.command === 'function' ) {
+          taskMsg.data.command = taskMsg.data.command(
+            task, {
+              fs : config.fs,
+              uri : new URL(taskMsg.subject)
+            }
+          );
+        }
+
+        // stringify task data
         taskMsg.data = JSON.stringify(taskMsg.data);
+
         this.bus.emit('task', taskMsg);
       }
     }
   }
 
   _generateTaskMsg(task) {
-    let existingTask = this.state.getBySubject(task.product);
+    let existingTask = this.state.getBySubject(task.subject);
     
     if( existingTask && task.definition.options.run !== 'everytime' ) {
       if( !existingTask.data.required.includes(task.subject) ) {
@@ -51,26 +67,21 @@ class KrmController {
       return existingTask;
     }
 
+    // Note: command will be set right before
+    // message is set
     task = {
       id : uuid.v4(),
       time : new Date().toISOString(),
-      type : 'casita.backend.task',
-      source : 'http://controller.casita.library.ucdavis.edu',
+      type : task.type || config.task.defaultType,
+      source : 'http://controller.'+config.server.url.hostname,
       datacontenttype : 'application/json',
-      subject : task.product,
+      subject : task.subject,
       data : {
         name : task.definition.name,
         required : [task.subject],
         ready : [],
-        productId : task.definition.id,
-        command : task.definition.command,
+        subjectId : task.definition.id,
         args : task.args
-      }
-    }
-
-    if( typeof task.data.command === 'function' ) {
-      task.data.command = {
-        function : task.data.command.toString()
       }
     }
 

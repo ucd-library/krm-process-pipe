@@ -83,7 +83,7 @@ class GraphParser {
         regex = regex.replace(new RegExp(`/:${argname}/`), '/([A-Za-z0-9_\\-\\:]+)/');
       }
     });
-    console.log(subject);
+
     subject.path.regex = new RegExp('^'+regex+'$');
     return subject;
   }
