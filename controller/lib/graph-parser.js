@@ -21,6 +21,8 @@ class GraphParser {
   }
 
   match(subjectHref, dependents=[]) {
+    if( subjectHref === 'file:///fulldisk/2020-06-25/04:25:30/cells/2-3/3/image.png' ) debugger;
+
     for( let key in this.graph ) {
       for( let depend of this.graph[key].dependencies ) {
 
@@ -33,8 +35,9 @@ class GraphParser {
 
         depend.subject.path.args.forEach((argname, i) => {
           dependArgs[argname] = match[i+1];
-          product = product.replace(new RegExp(`\\/:${argname}\\/`), '/'+dependArgs[argname]+'/');
+          product = product.replace(new RegExp(`\\/:${argname}(\\/|$)`), '/'+dependArgs[argname]+'/');
         });
+        product = product.replace(/\/$/, '');
 
         this.graph[key].subject.path.args.forEach(argname => {
           args[argname] = dependArgs[argname]; 

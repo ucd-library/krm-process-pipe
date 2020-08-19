@@ -22,12 +22,13 @@ class MemoryStore {
   }
 
   _getBy(key, value) {
+    let results = [];
     for( let id in this.data ) {
       if( this.data[id][key] === value ) {
-        return this.data[id];
+        results.push(this.data[id]);
       }
     }
-    return null;
+    return results;
   }
 
 }
