@@ -43,7 +43,7 @@ module.exports = {
   mongo : {
     dbName : 'krm',
     collections : {
-      dgState : 'dg-state'
+      krmState : 'krm-state'
     },
     host : env.MONGO_HOST || 'mongo',
     port : env.MONGO_PORT || 27017,

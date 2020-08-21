@@ -16,17 +16,39 @@ app.use((req, res, next) => {
   req.body = {};
 
   busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-    let tmpFile = path.join(os.tmpDir(), path.basename(fieldname));
+    // TODO: this needs to be a docker mount!
+    let tmpFile = path.join(os.tmpdir(), Math.random()*Date.now()+'');
     file.pipe(fs.createWriteStream(tmpFile));
-    body.fieldname = {fieldname, file, filename, encoding, mimetype, tmpFile};
+    req.body[fieldname] = {fieldname, file, filename, encoding, mimetype, tmpFile};
   });
   busboy.on('field', (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
-    body.fieldname = {fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype};
+    req.body[fieldname] = {fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype};
   });
   busboy.on('finish', () => next());
 
   req.pipe(busboy);
 });
+
+async function cleanFiles(req) {
+  if( !req.body ) return;
+  try {
+    for( let key in req.body ) {
+      let param = req.body[key];
+      if( !param.file ) continue;
+
+      try {
+        if( fs.existsSync(param.tmpFile) ) {
+          await fs.unlink(param.tmpFile);
+        }
+      } catch(e) {
+        logger.error('Failed to clean files', req.body, e);
+      }
+      
+    }
+  } catch(e) {
+    logger.error('Failed to clean files', req.body, e);
+  }
+}
 
 app.post('/', async (req, res) => {
   if( !req.body.path ) {
@@ -51,11 +73,15 @@ app.post('/', async (req, res) => {
         });
       }
     } else {
+      if( fs.existsSync(nfsPath) ) {
+        await fs.unlink(nfsPath);
+      }
       await fs.move(req.body.file.tmpFile, nfsPath);
     }
 
-    
-    await model.add(path.join('/', req.body.path.val, req.body.file.filename));
+    let subject = 'file://'+path.join('/', req.body.path.val, req.body.file.filename);
+    await model.sendSubjectReady(subject);
+    res.send({success: true, subject})
   } catch(e) {
     return res.status(400).json({
       error: {
@@ -65,6 +91,7 @@ app.post('/', async (req, res) => {
     });
   }
 
+  cleanFiles(req);
 });
 
 app.use(express.static(config.fs.nfsRoot));

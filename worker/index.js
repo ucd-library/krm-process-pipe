@@ -1,6 +1,8 @@
 const {bus, queue, config, logger} = require('@ucd-lib/krm-node-utils');
 const exec = require('./lib/exec');
 const fs = require('fs-extra');
+const path = require('path');
+const uuid = require('uuid');
 const RabbitMQ = queue.rabbitmq;
 const kafka = bus.kafka;
 
@@ -27,17 +29,28 @@ class Worker {
   }
 
   async onMessage(queueMsg) {
+    let msgData = null;
+
     try {
-      let msgData = JSON.parse(queueMsg.content.toString());
+      msgData = JSON.parse(queueMsg.content.toString());
       msgData.data = JSON.parse(msgData.data);
-      logger.info('Worker running msg', msgData);
+      logger.info('Worker running msg', msgData.subject);
 
       // TODO, does this work?
-      await exec(msgData.data.cmd);
+      await this.run(msgData);
 
-      await this.channel.ack(queueMsg);
+      await this.queue.ack(queueMsg);
     } catch(e) {
-      logger.error('Worker failed to run msg', e, msg);
+      logger.error('Worker failed to run msg', e, queueMsg);
+
+      if( !msgData ) {
+        logger.error('Worker got a really bad message', queueMsg.content.toString());
+        this.sendResponse(msgData, {
+          state: 'failed',
+          failures: [{message: queueMsg.content.toString()}]
+        });
+        await this.queue.ack(queueMsg);
+      }
       
       if( !msgData.data.failures ) msgData.data.failures = [];
       msgData.data.failures.push({
@@ -50,10 +63,10 @@ class Worker {
       });
 
       msgData.data = JSON.stringify(msgData.data);
-      msg.content = Buffer.from(JSON.stringify(msgData));
+      msgData.content = Buffer.from(JSON.stringify(msgData));
 
-      if( msgData.failures.length < config.worker.maxRetries ) {
-        await this.channel.nack(queueMsg);
+      if( msgData.data.failures.length < config.worker.maxRetries ) {
+        await this.queue.nack(queueMsg);
         return;
       }
 
@@ -61,7 +74,7 @@ class Worker {
         state: 'failed',
         failures: msgData.failures
       });
-      await this.channel.ack(queueMsg);
+      await this.queue.ack(queueMsg);
     }
   }
 
@@ -75,16 +88,17 @@ class Worker {
       let fullSubjectPath = path.join(config.fs.nfsRoot, uri.pathname);
       let exists = fs.existsSync(fullSubjectPath);
 
-      if( exists && !msg.data.force ) {
-        logger.warn('Ignoring task, subject file already exists: '+uri.pathname, msg);
-        this.sendResponse({
-          state : 'ignored',
-          details : 'Subject file already exists'
-        });
-        return;
+      // if( exists && !msg.data.force ) {
+      //   // logger.warn('Ignoring task, subject file already exists: '+uri.pathname);
+      //   // this.sendResponse(msg, {
+      //   //   state : 'ignored',
+      //   //   details : 'Subject file already exists'
+      //   // });
+      //   // return;
 
-      } else if( exists ) {
-        logger.info('Subject file already exists but force flag set for: '+uri.pathname);
+      // } else 
+      if( exists ) {
+        logger.info('Subject file already exists: '+uri.pathname);
       }
 
       msg.data.command = msg.data.command.replace(/{{ROOT}}/, config.fs.nfsRoot);
@@ -92,7 +106,7 @@ class Worker {
 
     let {stdout, stderr} = await exec(msg.data.command);
 
-    this.sendResponse({
+    this.sendResponse(msg, {
       state : 'completed',
       stdout, 
       stderr
@@ -112,6 +126,7 @@ class Worker {
       data : JSON.stringify(response)
     }
 
+    logger.info('Worker sending finished message: '+msg.subject, response.state);
     return this.kafkaProducer.produce({
       topic : config.kafka.topics.subjectReady,
       value: finishedMsg,

@@ -34,9 +34,18 @@ class KrmController {
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
+    let allTopics = {};
     for( let subjectId in this.graph.graph ) {
+      allTopics[kafka.utils.getTopicName(subjectId)] = true;
+      if( !this.graph.graph[subjectId].dependencies ) continue;
+      for( let dep of this.graph.graph[subjectId].dependencies ) {
+        allTopics[kafka.utils.getTopicName(dep.subject.href)] = true; 
+      }
+    }
+
+    for( let topic of Object.keys(allTopics) ) {
       await kafka.utils.ensureTopic({
-        topic : kafak.utils.getTopicName(subjectId),
+        topic,
         num_partitions: 1,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
@@ -44,7 +53,7 @@ class KrmController {
 
     let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(config.kafka.topics.subjectReady);
     this.topics = await this.kafkaConsumer.committed(config.kafka.topics.subjectReady);
-    logger.info(`Controller (group.id=${this.groupId}) kafak status=`, this.topics, 'watermarks=', watermarks);
+    logger.info(`Controller (group.id=${this.groupId}) kafka status=`, this.topics, 'watermarks=', watermarks);
   
     await this.kafkaConsumer.assign(config.kafka.topics.subjectReady);
     await this.listen();
@@ -59,6 +68,8 @@ class KrmController {
       datacontenttype : 'application/json',
       subject
     }
+
+    logger.info('Sending subject ready to kafka', value)
 
     return this.kafkaProducer.produce({
       topic : config.kafka.topics.subjectReady,
@@ -94,17 +105,31 @@ class KrmController {
     this._onSubjectReady(msg.subject, msg.fromMessage);
   }
 
-  _onSubjectReady(subject, fromMessage) {
+  async _onSubjectReady(subject, fromMessage) {
+    logger.info('Subject ready: '+subject);
+
     let dependentTasks = this.dependencyGraph.match(subject);
     if( !dependentTasks ) return;
 
+    let collection = await mongo.getCollection(config.mongo.collections.krmState);
+
+    // console.log(dependentTasks);
     for( let task of dependentTasks ) {
-      let taskMsg = this._generateTaskMsg(task);
+      let taskMsg = await this._generateTaskMsg(task);
+      // console.log(task);
+      // console.log(taskMsg);
+      // console.log('--------');
 
       // see if a required subject is ready
       if( taskMsg.data.required.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
         taskMsg.data.ready.push(subject);
+
+        await collection.updateOne({id: taskMsg.id}, {
+          $set : {
+            'data.ready' : taskMsg.data.ready
+          }
+        });
       }
 
       // now check to see if the task can execute
@@ -112,7 +137,8 @@ class KrmController {
       if( dependentCount === taskMsg.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
-        this.state.remove(taskMsg.id);
+        // this.state.remove(taskMsg.id);
+        await collection.deleteOne({id: taskMsg.id});
 
         // handle functional commands
         taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
@@ -126,10 +152,12 @@ class KrmController {
         }
 
         // stringify task data
+        let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
         taskMsg.data = JSON.stringify(taskMsg.data);
 
-        return this.kafkaProducer.produce({
-          topic : kafka.utils.getTopicName(taskMsg.type),
+        logger.info('Sending task message to: '+topicName, 'subject='+taskMsg.subject);
+        this.kafkaProducer.produce({
+          topic : topicName,
           value: taskMsg,
           key : this.groupId
         });
@@ -137,8 +165,11 @@ class KrmController {
     }
   }
 
-  _generateTaskMsg(task) {
-    let existingTasks = this.state.getBySubject(task.product);
+  async _generateTaskMsg(task) {
+    let collection = await mongo.getCollection(config.mongo.collections.krmState);
+
+    let existingTasks = await collection.find({subject: task.product}).toArray();
+    // let existingTasks = this.state.getBySubject(task.product);
     
     if( existingTasks.length ) {
       for( let existingTask of existingTasks ) {
@@ -148,6 +179,12 @@ class KrmController {
           !existingTask.data.required.includes(task.subject) ) {
           
           existingTask.data.required.push(task.subject);
+          await collection.updateOne({id: existingTask.id}, {
+            $set : {
+              'data.required' : existingTask.data.required
+            }
+          });
+
           return existingTask;
         } else if( existingTask.data.required.includes(task.subject) ) {
           return existingTask;
@@ -160,7 +197,7 @@ class KrmController {
     task = {
       id : uuid.v4(),
       time : new Date().toISOString(),
-      type : task.worker || config.task.defaultWorker,
+      type : task.definition.worker || config.task.defaultWorker,
       source : 'http://controller.'+config.server.url.hostname,
       datacontenttype : 'application/json',
       subject : task.product,
@@ -174,7 +211,8 @@ class KrmController {
       }
     }
 
-    this.state.set(task);
+    await collection.insertOne(task);
+    // this.state.set(task);
 
     return task;
   }

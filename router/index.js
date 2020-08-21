@@ -26,23 +26,31 @@ class Router {
     });
     await this.kafkaConsumer.connect();
 
-    let topics = [];
+    let allTopics = {};
     for( let subjectId in config.graph.graph ) {
-      let topicName = kafka.utils.getTopicName(subjectId);
+      allTopics[kafka.utils.getTopicName(subjectId)] = true;
+      if( !config.graph.graph[subjectId].dependencies ) continue;
+      for( let dep of config.graph.graph[subjectId].dependencies ) {
+        allTopics[kafka.utils.getTopicName(dep.subject)] = true; 
+      }
+    }
 
+    let topics = [];
+    for( let topicName of Object.keys(allTopics) ) {
       await kafka.utils.ensureTopic({
-        topic : topicName,
+        topic: topicName,
         num_partitions: 1,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
       let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);
       let topic = await this.kafkaConsumer.committed(topicName);
-      topics.push(topicName);
-      logger.info(`Router (group.id=${this.groupId}) kafak status=`, topic, 'watermarks=', watermarks);
+      topics.push(topic[0]);
+      logger.info(`Router (group.id=${this.groupId}) kafka status=`, topic, 'watermarks=', watermarks);
     }
 
     await this.kafkaConsumer.assign(topics);
+    await this.listen();
   }
 
   /**
@@ -68,6 +76,8 @@ class Router {
 
     logger.info(`handling kafka message: ${kafka.utils.getMsgId(msg)}`);
     msg = JSON.parse(msg.value.toString('utf-8'));
+
+    logger.info(`Routing message for ${msg.subject} to ${msg.type} queue`);
     await this.queue.send(msg.type, msg);
   }
 
