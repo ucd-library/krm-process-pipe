@@ -140,11 +140,14 @@ class Consumer {
    * @returns {Array}
    */
   _topicHelper(topic) {
-    if( typeof topic === 'string' ) topic = {topic};
     if( !Array.isArray(topic) ) topic = [topic];
-    
-    topic.forEach(t => {
+
+    topic = topic.map(t => {
+      if( typeof t === 'string' ) {
+        t = {topic:t};
+      }
       if( !t.partition ) t.partition = 0; 
+      return t;
     });
 
     return topic;

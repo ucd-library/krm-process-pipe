@@ -28,7 +28,7 @@ app.use((req, res, next) => {
   req.pipe(busboy);
 });
 
-app.post('/', (req, res) => {
+app.post('/', async (req, res) => {
   if( !req.body.path ) {
     return res.status(400).json({
       error: {
@@ -67,6 +67,10 @@ app.post('/', (req, res) => {
 
 });
 
-app.listen(3000, () => {
+app.use(express.static(config.fs.nfsRoot));
+
+app.listen(3000, async () => {
   logger.info('controller listening to port: 3000');
+  await model.connect();
+  logger.info('controller connected to kafka, ready to process');
 });

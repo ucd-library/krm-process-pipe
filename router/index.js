@@ -7,15 +7,15 @@ class Router {
   constructor() {
     this.groupId = 'router';
     this.queue = new RabbitMQ();
-    this.init();
+    this.connect();
   }
 
-  async init() {
+  async connect() {
     // TODO: connect to rabbitmq first
     await this.queue.connect();
     let workerQueues = {};
-    for( let subjectId in config.graph ) {
-      taskTypes[config.graph[subjectId].worker || config.task.defaultWorker] = true;
+    for( let subjectId in config.graph.graph ) {
+      workerQueues[config.graph.graph[subjectId].worker || config.task.defaultWorker] = true;
     }
     await this.queue.createQueues(Object.keys(workerQueues));
 
@@ -26,21 +26,21 @@ class Router {
     });
     await this.kafkaConsumer.connect();
 
-    this.topics = [];
-    for( let subjectId in config.graph ) {
+    let topics = [];
+    for( let subjectId in config.graph.graph ) {
+      let topicName = kafka.utils.getTopicName(subjectId);
+
       await kafka.utils.ensureTopic({
-        topic : subjectId,
+        topic : topicName,
         num_partitions: 1,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-      this.topics.push({topic: subjectId});
+      let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);
+      let topic = await this.kafkaConsumer.committed(topicName);
+      topics.push(topicName);
+      logger.info(`Router (group.id=${this.groupId}) kafak status=`, topic, 'watermarks=', watermarks);
     }
-
-    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(this.topics);
-    this.topics = await this.kafkaConsumer.committed(this.topics);
-    logger.info(`Router (group.id=${this.groupId}) kafak status=`, topics, 'watermarks=', watermarks);
-
 
     await this.kafkaConsumer.assign(topics);
   }

@@ -1,7 +1,8 @@
 const {bus, queue, config, logger} = require('@ucd-lib/krm-node-utils');
 const exec = require('./lib/exec');
-const { fs } = require('../node-utils/lib/config');
+const fs = require('fs-extra');
 const RabbitMQ = queue.rabbitmq;
+const kafka = bus.kafka;
 
 class Worker {
 
@@ -16,7 +17,7 @@ class Worker {
     });
   }
 
-  connect() {
+  async connect() {
     logger.info('Worker connecting to queue: '+config.worker.queue);
     await this.queue.connect();
     await this.queue.createQueues(config.worker.queue);
@@ -120,4 +121,7 @@ class Worker {
 
 }
 
-new Worker();
+(async function() {
+  let worker = new Worker();
+  worker.connect();
+})();

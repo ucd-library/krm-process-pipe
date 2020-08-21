@@ -1,6 +1,6 @@
 const amqp = require('amqplib');
-const logger = require('./logger');
-const config = require('./config');
+const logger = require('../logger');
+const config = require('../config');
 
 class RabbitMQ {
 
@@ -24,10 +24,6 @@ class RabbitMQ {
       this.channel = await this.conn.createChannel();
       logger.info(`connected to RabbitMQ server, setting prefetch to ${this.opts.prefetchCount}`);
 
-      this.channel.prefetch(this.opts); // only one message at a time
-      await this.createQueues(this.QUEUES);
-      this.channel.consume(this.QUEUES.WAITING, msg => this.onMessage(msg));
-
     } catch(e) {
       logger.warn(`Error attempting to connect to RabbitMQ, will try again`, e);
       setTimeout(() => this.connect(), 2000);
@@ -43,13 +39,14 @@ class RabbitMQ {
   }
 
   listen(queue, callback) {
+    this.channel.prefetch(this.opts.prefetchCount);
     this.channel.consume(queue, msg => callback(msg));
   }
 
   async createQueues(queues=[]) {
     if( !Array.isArray(queues) ) queues = [queues];
     for( let queue of queues ) {
-      logger.info(`removing queue ${queue}`);
+      logger.info(`ensuring queue ${queue}`);
       await this.channel.assertQueue(queue, {durable: true});
     }
   }

@@ -1,8 +1,9 @@
-const GraphParser = require('./lib/graph-parser');
+const GraphParser = require('./graph-parser');
 const uuid = require('uuid');
 const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
+const mongo = state.mongo;
 
 class KrmController {
 
@@ -23,7 +24,7 @@ class KrmController {
     this.dependencyGraph = new GraphParser(this.graph);
   }
 
-  connect() {
+  async connect() {
     await this.kafkaProducer.connect();
     await this.kafkaConsumer.connect();
 
@@ -33,18 +34,17 @@ class KrmController {
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-    this.topics = [];
-    for( let subjectId in this.graph ) {
+    for( let subjectId in this.graph.graph ) {
       await kafka.utils.ensureTopic({
-        topic : subjectId,
+        topic : kafak.utils.getTopicName(subjectId),
         num_partitions: 1,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
     }
 
-    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(subjectId);
-    this.topics = await this.kafkaConsumer.committed(subjectId);
-    logger.info(`Controller (group.id=${this.groupId}) kafak status=`, topics, 'watermarks=', watermarks);
+    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(config.kafka.topics.subjectReady);
+    this.topics = await this.kafkaConsumer.committed(config.kafka.topics.subjectReady);
+    logger.info(`Controller (group.id=${this.groupId}) kafak status=`, this.topics, 'watermarks=', watermarks);
   
     await this.kafkaConsumer.assign(config.kafka.topics.subjectReady);
     await this.listen();
@@ -91,7 +91,7 @@ class KrmController {
     logger.info(`handling kafka message: ${kafka.utils.getMsgId(msg)}`);
     msg = JSON.parse(msg.value.toString('utf-8'));
     
-    this._subjectReady(msg.subject, msg.fromMessage);
+    this._onSubjectReady(msg.subject, msg.fromMessage);
   }
 
   _onSubjectReady(subject, fromMessage) {
@@ -128,7 +128,11 @@ class KrmController {
         // stringify task data
         taskMsg.data = JSON.stringify(taskMsg.data);
 
-        this.bus.emit('task', taskMsg);
+        return this.kafkaProducer.produce({
+          topic : kafka.utils.getTopicName(taskMsg.type),
+          value: taskMsg,
+          key : this.groupId
+        });
       }
     }
   }

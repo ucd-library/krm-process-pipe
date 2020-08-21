@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/logging-bunyan": "^3.0.0",
+    "amqplib": "^0.6.0",
     "bunyan": "^1.8.14",
     "fs-extra": "^9.0.1",
     "mongodb": "^3.6.0",
