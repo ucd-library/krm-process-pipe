@@ -32,11 +32,12 @@ class Worker {
     let completed = {
       id : uuid.v4(),
       time : new Date().toISOString(),
-      type : msg.type+'.completed',
+      type : msg.type,
       source : 'http://worker.'+config.server.url.hostname,
       datacontenttype : 'application/json',
       subject : msg.subject,
       data : {
+        state : 'completed',
         stdout, 
         stderr,
         task: msg

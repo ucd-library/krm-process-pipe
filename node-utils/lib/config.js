@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const {URL} = require('url');
+const { env } = require('process');
 
 const ROOT_FS = path.resolve(__dirname, '..', '..', 'storage');
 const SERVER_URL = process.env.SERVER_URL || 'http://casita.library.ucdavis.edu';
@@ -24,6 +25,14 @@ module.exports = {
     defaultWorker : 'default.casita.library.ucdavis.edu'
   },
 
+  kafka : {
+    host : env.KAFKA_HOST || 'kafka',
+    port : env.KAFKA_PORT || 9092,
+    topics : {
+      subjectReady : 'subject-ready'
+    }
+  },
+
   mongo : {
     dbName : 'krm',
     collections : {
@@ -41,5 +50,10 @@ module.exports = {
     host : env.RABBITMQ_HOST || 'rabbitmq',
     port : env.RABBITMQ_PORT || 5672,
     defaultPriority : 5,
+  },
+
+  worker : {
+    queue : env.WORKER_QUEUE || env.WORKER_TYPE,
+    maxRetries : 3
   }
 }

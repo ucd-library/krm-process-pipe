@@ -12,6 +12,7 @@ class Router {
 
   async init() {
     // TODO: connect to rabbitmq first
+    await this.queue.connect();
     let workerQueues = {};
     for( let subjectId in config.graph ) {
       taskTypes[config.graph[subjectId].worker || config.task.defaultWorker] = true;
@@ -36,8 +37,8 @@ class Router {
       this.topics.push({topic: subjectId});
     }
 
-    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(subjectId);
-    this.topics = await this.kafkaConsumer.committed(subjectId);
+    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(this.topics);
+    this.topics = await this.kafkaConsumer.committed(this.topics);
     logger.info(`Router (group.id=${this.groupId}) kafak status=`, topics, 'watermarks=', watermarks);
 
 

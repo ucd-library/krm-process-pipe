@@ -1,31 +1,100 @@
 const GraphParser = require('./lib/graph-parser');
 const uuid = require('uuid');
-const config = require('../utils/lib/config');
+const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
+
+const kafka = bus.kafka;
 
 class KrmController {
 
-  constructor(graph, opts={}) {
-    if( opts.backend === 'distributed' ) {
-      this.bus = require('../utils/lib/bus/kafka');
-      this.state = require('../utils/lib/state/mongo');
-    } else  {
-      this.bus = require('../utils/lib/bus/memory');
-      this.state = require('../utils/lib/state/memory');
-      this.queue = require('../utils/lib/queue/memory');
-      this.queue.setBus(this.bus);
-    }
+  constructor(opts={}) {
+    this.groupId = 'controller';
 
-    this.bus.on('completed', msg => {
-      this.add(msg.subject)
-      console.log('Finished: '+msg.subject);
-      console.log('  --> '+msg.data.task.data.required.join('\n  --> '));
-      console.log('');
+    this.kafkaProducer = new kafka.Producer({
+      'metadata.broker.list': config.kafka.host+':'+config.kafka.port
     });
 
-    this.dependencyGraph = new GraphParser(graph);
+    this.kafkaConsumer = new kafka.Consumer({
+      'group.id': this.groupId,
+      'metadata.broker.list': config.kafka.host+':'+config.kafka.port,
+      'enable.auto.commit': true
+    })
+
+    this.graph = opts.graph || config.graph;
+    this.dependencyGraph = new GraphParser(this.graph);
   }
 
-  add(subject) {
+  connect() {
+    await this.kafkaProducer.connect();
+    await this.kafkaConsumer.connect();
+
+    await kafka.utils.ensureTopic({
+      topic : config.kafka.topics.subjectReady,
+      num_partitions: 1,
+      replication_factor: 1
+    }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
+
+    this.topics = [];
+    for( let subjectId in this.graph ) {
+      await kafka.utils.ensureTopic({
+        topic : subjectId,
+        num_partitions: 1,
+        replication_factor: 1
+      }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
+    }
+
+    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(subjectId);
+    this.topics = await this.kafkaConsumer.committed(subjectId);
+    logger.info(`Controller (group.id=${this.groupId}) kafak status=`, topics, 'watermarks=', watermarks);
+  
+    await this.kafkaConsumer.assign(config.kafka.topics.subjectReady);
+    await this.listen();
+  }
+
+  sendSubjectReady(subject) {
+    let value = {
+      id : uuid.v4(),
+      time : new Date().toISOString(),
+      type : 'new.subject',
+      source : 'http://controller.'+config.server.url.hostname,
+      datacontenttype : 'application/json',
+      subject
+    }
+
+    return this.kafkaProducer.produce({
+      topic : config.kafka.topics.subjectReady,
+      value,
+      key : this.groupId
+    });
+  }
+
+  /**
+   * @method listen
+   * @description Start consuming messages from kafka, register onMessage as the handler.
+   */
+  async listen() {
+    try {
+      await this.kafkaConsumer.consume(msg => this.onMessage(msg));
+    } catch(e) {
+      logger.error('kafka consume error', e);
+    }
+  }
+
+  /**
+   * @method onMessage
+   * @description handle a kafka message.
+   * 
+   * @param {Object} msg kafka message
+   */
+  async onMessage(msg) {
+    this.run = false;
+
+    logger.info(`handling kafka message: ${kafka.utils.getMsgId(msg)}`);
+    msg = JSON.parse(msg.value.toString('utf-8'));
+    
+    this._subjectReady(msg.subject, msg.fromMessage);
+  }
+
+  _onSubjectReady(subject, fromMessage) {
     let dependentTasks = this.dependencyGraph.match(subject);
     if( !dependentTasks ) return;
 

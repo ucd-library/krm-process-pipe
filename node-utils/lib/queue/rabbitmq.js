@@ -34,6 +34,18 @@ class RabbitMQ {
     }
   }
 
+  ack(msg) {
+    return this.channel.ack(msg);
+  }
+
+  nack(msg) {
+    return this.channel.nack(msg);
+  }
+
+  listen(queue, callback) {
+    this.channel.consume(queue, msg => callback(msg));
+  }
+
   async createQueues(queues=[]) {
     if( !Array.isArray(queues) ) queues = [queues];
     for( let queue of queues ) {

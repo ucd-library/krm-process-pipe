@@ -21,8 +21,6 @@ class GraphParser {
   }
 
   match(subjectHref, dependents=[]) {
-    if( subjectHref === 'file:///fulldisk/2020-06-25/04:25:30/cells/2-3/3/image.png' ) debugger;
-
     for( let key in this.graph ) {
       for( let depend of this.graph[key].dependencies ) {
 
