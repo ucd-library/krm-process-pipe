@@ -14,7 +14,7 @@ class Database {
     if( this.connected ) return;
 
     if( this.connecting ) {
-      await this.connecting;
+      return this.connecting;
     }
 
     var url = `mongodb://${config.mongo.host}:${config.mongo.port}`;

@@ -69,7 +69,7 @@ class KrmController {
       subject
     }
 
-    logger.info('Sending subject ready to kafka', value)
+    logger.info('Sending subject ready to kafka: ', subject)
 
     return this.kafkaProducer.produce({
       topic : config.kafka.topics.subjectReady,
@@ -106,34 +106,34 @@ class KrmController {
   }
 
   async _onSubjectReady(subject, fromMessage) {
-    logger.info('Subject ready: '+subject);
-
     let dependentTasks = this.dependencyGraph.match(subject);
     if( !dependentTasks ) return;
 
+    logger.info('Handling subject with tasks: '+subject);
+
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
-    // console.log(dependentTasks);
     for( let task of dependentTasks ) {
       let taskMsg = await this._generateTaskMsg(task);
-      // console.log(task);
-      // console.log(taskMsg);
-      // console.log('--------');
 
       // see if a required subject is ready
       if( taskMsg.data.required.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
-        taskMsg.data.ready.push(subject);
+
+        if( !taskMsg.data.ready.includes(subject) ) {
+          taskMsg.data.ready.push(subject);
+        }
 
         await collection.updateOne({id: taskMsg.id}, {
           $set : {
+            lastUpdated : taskMsg.data.lastUpdated,
             'data.ready' : taskMsg.data.ready
           }
         });
       }
 
       // now check to see if the task can execute
-      let dependentCount = task.definition.options.dependentCount || 1;
+      let dependentCount = this._getDependentCount(task.subject, task.definition.options);
       if( dependentCount === taskMsg.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
@@ -173,7 +173,7 @@ class KrmController {
     
     if( existingTasks.length ) {
       for( let existingTask of existingTasks ) {
-        let dependentCount = task.definition.options.dependentCount || 1;
+        let dependentCount = this._getDependentCount(task.subject, task.definition.options);
 
         if( existingTask.data.required.length < dependentCount && 
           !existingTask.data.required.includes(task.subject) ) {
@@ -204,7 +204,6 @@ class KrmController {
       data : {
         name : task.definition.name,
         required : [task.subject],
-        requiredCount : task.definition.options.dependentCount || 1,
         ready : [],
         subjectId : task.definition.id,
         args : task.args
@@ -212,9 +211,15 @@ class KrmController {
     }
 
     await collection.insertOne(task);
-    // this.state.set(task);
 
     return task;
+  }
+
+  _getDependentCount(subject, opts) {
+    if( typeof opts.dependentCount === 'function' ) {
+      return parseInt(opts.dependentCount(subject, config.fs.nfsRoot));
+    }
+    return parseInt(opts.dependentCount || 1);
   }
 
 }
