@@ -80,10 +80,11 @@ class Worker {
 
   async run(msg) {
     let uri = new URL(msg.subject);
+    let cwd = process.cwd();
+
     if( uri.protocol === 'file:' ) {
-      await fs.mkdirp(
-        path.join(config.fs.nfsRoot, path.parse(uri.pathname).dir)
-      );
+      cwd = path.join(config.fs.nfsRoot, path.parse(uri.pathname).dir);
+      await fs.mkdirp(cwd);
 
       let fullSubjectPath = path.join(config.fs.nfsRoot, uri.pathname);
       let exists = fs.existsSync(fullSubjectPath);
@@ -104,7 +105,7 @@ class Worker {
       msg.data.command = msg.data.command.replace(/{{ROOT}}/, config.fs.nfsRoot);
     }
 
-    let {stdout, stderr} = await exec(msg.data.command);
+    let {stdout, stderr} = await exec(msg.data.command, {cwd});
 
     this.sendResponse(msg, {
       state : 'completed',

@@ -9,6 +9,12 @@ class RabbitMQ {
   }
 
   async connect(opts={}) {
+    if( !this.connectPromise ) {
+      this.connectPromise = new Promise(async (resolve, reject) => {
+        this.connectResolve = resolve;
+      });
+    }
+
     this.opts = Object.assign({
       prefetchCount : 1
     }, opts);
@@ -24,10 +30,17 @@ class RabbitMQ {
       this.channel = await this.conn.createChannel();
       logger.info(`connected to RabbitMQ server, setting prefetch to ${this.opts.prefetchCount}`);
 
+      let resolve = this.connectResolve;
+      this.connectPromise = null;
+      this.connectResolve = null;
+      resolve();
+
     } catch(e) {
       logger.warn(`Error attempting to connect to RabbitMQ, will try again`, e);
       setTimeout(() => this.connect(), 2000);
     }
+
+    return this.connectPromise;
   }
 
   ack(msg) {
