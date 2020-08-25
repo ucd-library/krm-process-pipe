@@ -107,8 +107,14 @@ class Worker {
 
     let {stdout, stderr} = await exec(msg.data.command, {cwd});
 
+    if( config.worker.debug ) {
+      logger.info({command: msg.data.command, stdout, stderr, cwd});
+    }
+
     this.sendResponse(msg, {
       state : 'completed',
+      command: msg.data.command,
+      cwd,
       stdout, 
       stderr
     });

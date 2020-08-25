@@ -14,9 +14,14 @@ if( fs.existsSync(process.env.GRAPH_FILE || '/etc/krm/graph') ) {
 module.exports = {
   graph,
 
+  cron : {
+    fsExpire : '0 0-23 * * *'
+  },
+
   fs : {
     workerRoot : process.env.WORKER_FS_ROOT || '/storage/worker',
-    nfsRoot : process.env.NFS_ROOT || '/storage/nfs'
+    nfsRoot : process.env.NFS_ROOT || '/storage/nfs',
+    expire : 24 * 60 * 60
   },
 
   task : {
@@ -61,6 +66,7 @@ module.exports = {
 
   worker : {
     queue : env.WORKER_QUEUE || env.WORKER_TYPE,
+    debug : env.DEBUG_WORKER === 'true' ? true : false,
     maxRetries : 3
   }
 }
