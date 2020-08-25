@@ -1,4 +1,5 @@
 const Kafka = require('node-rdkafka');
+const logger = require('../../logger');
 
 class Consumer {
 
@@ -7,6 +8,11 @@ class Consumer {
     this.loopTimer = -1;
     this.loopInterval = 500;
     this.consuming = true;
+
+    this.client
+      .on('ready', () => logger.info('Kafka consumer ready'))
+      .on('disconnected', e => logger.warn('Kafka consumer disconnected', e))
+      .on('event.error', e => logger.error('Kafka consumer event.error', e));
   }
 
   /**
@@ -60,6 +66,7 @@ class Consumer {
    * @param {Object} opts 
    */
   connect(opts={}) {
+    this.connectOpts = opts;
     return new Promise((resolve, reject) => {
       this.client.connect(opts, (err, data) => {
         if( err ) reject(err);

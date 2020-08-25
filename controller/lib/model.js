@@ -55,7 +55,7 @@ class KrmController {
     this.topics = await this.kafkaConsumer.committed(config.kafka.topics.subjectReady);
     logger.info(`Controller (group.id=${this.groupId}) kafka status=`, this.topics, 'watermarks=', watermarks);
   
-    await this.kafkaConsumer.assign(config.kafka.topics.subjectReady);
+    await this.kafkaConsumer.assign(this.topics);
     await this.listen();
   }
 
