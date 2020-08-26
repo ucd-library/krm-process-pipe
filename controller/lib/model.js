@@ -232,7 +232,7 @@ class KrmController {
       }
       await collection.insertOne(task);
     } catch(e) {
-      logger.warn('Failed to insert new task into mongo, attempting update', e);
+      logger.warn('Failed to insert new task into mongo, attempting update: ', {subject: task.product, required:task.subject}, e);
 
       try {
         let resp = await collection.findOneAndUpdate(
@@ -250,7 +250,7 @@ class KrmController {
         // is not equal to the number of products matched
         await collection.insertOne(task);
       } catch(e) {
-        logger.error('Failed to add required subject to task in mongo: '+task.subject, e);
+        logger.error('Failed to add required subject to task in mongo: ', {subject: task.product, required:task.subject, updateResponse: resp}, e);
       }
     }
 
