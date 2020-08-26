@@ -4,7 +4,7 @@ const config = require('./config');
 
 const streams = [
   // Log to the console
-  { stream: process.stdout }
+  { stream: process.stdout, level: config.logging.level }
 ];
 
 // wire in stack driver if google cloud service account provided
@@ -21,18 +21,18 @@ if( fs.existsSync(config.google.serviceAccountFile) &&
   projectId = accountFile.project_id;
   let loggingBunyan = new LoggingBunyan({
     projectId: accountFile.project_id,
-    keyFilename: config.google.serviceAccountFile,
-    resource : {type: 'project'}
+    keyFilename: config.google.serviceAccountFile
+    // resource : {type: 'project'}
   });
 
   // add new logger stream
-  streams.push(loggingBunyan.stream());
+  streams.push(loggingBunyan.stream(config.logging.level));
 }
 
 
 let logger = bunyan.createLogger({
   name: config.logging.name,
-  level: config.logging.level,
+  // level: config.logging.level,
   streams: streams
 });
 

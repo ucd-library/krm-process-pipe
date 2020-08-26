@@ -5,6 +5,11 @@ class Producer {
   constructor(config) {
     this.config = config;
     this.client = new Kafka.Producer(config);
+
+    this.client
+      .on('ready', () => logger.info('Kafka producer ready'))
+      .on('disconnected', e => logger.warn('Kafka producer disconnected', e))
+      .on('event.error', e => logger.error('Kafka producer event.error', e));
   }
 
   /**
@@ -16,6 +21,7 @@ class Producer {
   connect(opts={}) {
     return new Promise((resolve, reject) => {
       this.client.connect(opts, (err, data) => {
+        this.client.setPollInterval(100);
         if( err ) reject(err);
         else resolve(data);
       });

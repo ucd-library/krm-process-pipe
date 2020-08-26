@@ -34,6 +34,21 @@ module.exports = {
     topics : {
       subjectReady : 'subject-ready'
     }
+    // resources
+    // https://docs.confluent.io/4.1.0/clients/librdkafka/INTRODUCTION_8md.html
+    // https://kafka.apache.org/08/documentation.html
+    // https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+    // defaultConfig : {
+    //   'batch.num.messages' : 20,
+    //   'batch.size' : 200000,
+    //   'queue.buffering.max.ms' : 200
+    // }
+    // message.max.bytes
+    // max.message.bytes
+    // batch.size
+    // linger.ms
+    // max.block.ms
+    // max.request.size
   },
 
   google : {
