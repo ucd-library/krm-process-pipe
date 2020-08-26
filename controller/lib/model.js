@@ -134,7 +134,7 @@ class KrmController {
       let dependentCount = this._getDependentCount(task.subject, task.definition.options);
       let item = await collection.findOne({id: taskMsg.id}, {'data.ready': 1});
 
-      if( item && dependentCount >= item.data.ready.length ) {
+      if( item && dependentCount === item.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
         // this.state.remove(taskMsg.id);
@@ -182,7 +182,7 @@ class KrmController {
         existingTask = existingTasks[0];
       } else {
         for( let et of existingTasks ) {
-          if( et.data.required.includes(task.product) ) {
+          if( et.data.required.includes(task.subject) ) {
             existingTask = et;
             break;
           }
@@ -193,12 +193,12 @@ class KrmController {
         }
       }
 
-      if( existingTask.data.ready.includes(task.product) ) {
-        existingTask.data.ready.push(task.product);
+      if( existingTask.data.required.includes(task.subject) ) {
+        existingTask.data.required.push(task.subject);
       }
       await collection.updateOne({id: existingTask.id}, {
         $addToSet : {
-          'data.ready' : task.product
+          'data.required' : task.subject
         }
       });
 
