@@ -1,4 +1,4 @@
-const MongoClient = require('mongodb').MongoClient;
+const {MongoClient, ObjectId} = require('mongodb');
 const logger = require('../logger');
 const config = require('../config');
 
@@ -8,6 +8,7 @@ class Database {
     this.db;
     this.connected = false;
     this.connecting = false; 
+    this.ObjectId = ObjectId;
   }
 
   async connect() {

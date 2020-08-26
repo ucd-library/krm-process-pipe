@@ -4,6 +4,7 @@ const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
 const mongo = state.mongo;
+const ObjectId = mongo.ObjectId;
 
 class KrmController {
 
@@ -116,32 +117,31 @@ class KrmController {
     for( let task of dependentTasks ) {
       let taskMsg = await this._generateTaskMsg(task);
 
-      // see if a required subject is ready
-      if( taskMsg.data.required.includes(subject) ) {
+      if( !taskMsg.data.ready.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
-
-        if( !taskMsg.data.ready.includes(subject) ) {
-          taskMsg.data.ready.push(subject);
-        }
-
-        await collection.updateOne({id: taskMsg.id}, {
-          $set : {
-            lastUpdated : taskMsg.data.lastUpdated,
-            'data.ready' : taskMsg.data.ready
-          }
-        });
+        taskMsg.data.ready.push(subject);
       }
+      await collection.updateOne({id: taskMsg.id}, {
+        $set : {
+          lastUpdated : taskMsg.data.lastUpdated,
+        },
+        $addToSet : {
+          'data.ready' : subject
+        }
+      });
 
       // now check to see if the task can execute
       let dependentCount = this._getDependentCount(task.subject, task.definition.options);
-      if( dependentCount === taskMsg.data.ready.length ) {
+      let item = await collection.findOne({id: taskMsg.id}, {'data.ready': 1});
+
+      if( item && dependentCount >= item.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
         // this.state.remove(taskMsg.id);
         await collection.deleteOne({id: taskMsg.id});
 
         // handle functional commands
-        taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
+        taskMsg.data.command = task.definition.command;
         if( typeof taskMsg.data.command === 'function' ) {
           taskMsg.data.command = taskMsg.data.command(
             task, {
@@ -167,50 +167,92 @@ class KrmController {
 
   async _generateTaskMsg(task) {
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
+    let isMultiDependency = task.definition.options.dependentCount ? true : false;
 
     let existingTasks = await collection.find({subject: task.product}).toArray();
     // let existingTasks = this.state.getBySubject(task.product);
     
     if( existingTasks.length ) {
-      for( let existingTask of existingTasks ) {
-        let dependentCount = this._getDependentCount(task.subject, task.definition.options);
+      if( isMultiDependency && existingTasks.length > 1 ) {
+        logger.error('More that one mongo task object for multi-dependency-task. subject: '+task.subject, existingTasks.map(t => t.id))
+      }
 
-        if( existingTask.data.required.length < dependentCount && 
-          !existingTask.data.required.includes(task.subject) ) {
-          
-          existingTask.data.required.push(task.subject);
-          await collection.updateOne({id: existingTask.id}, {
-            $set : {
-              'data.required' : existingTask.data.required
-            }
-          });
+      let existingTask = null;
+      if( isMultiDependency ) {
+        existingTask = existingTasks[0];
+      } else {
+        for( let et of existingTasks ) {
+          if( et.data.required.includes(task.product) ) {
+            existingTask = et;
+            break;
+          }
+        }
 
-          return existingTask;
-        } else if( existingTask.data.required.includes(task.subject) ) {
-          return existingTask;
+        if( !existingTask ) {
+          return this.createTask(task);
         }
       }
+
+      if( existingTask.data.ready.includes(task.product) ) {
+        existingTask.data.ready.push(task.product);
+      }
+      await collection.updateOne({id: existingTask.id}, {
+        $addToSet : {
+          'data.ready' : task.product
+        }
+      });
+
+      return existingTask;
     }
 
-    // Note: command will be set right before
-    // message is set
-    task = {
-      id : uuid.v4(),
-      time : new Date().toISOString(),
-      type : task.definition.worker || config.task.defaultWorker,
-      source : 'http://controller.'+config.server.url.hostname,
-      datacontenttype : 'application/json',
-      subject : task.product,
-      data : {
-        name : task.definition.name,
-        required : [task.subject],
-        ready : [],
-        subjectId : task.definition.id,
-        args : task.args
+    return this.createTask(task);
+  }
+
+  async createTask(task) {
+    let isMultiDependency = task.definition.options.dependentCount ? true : false;
+    let collection = await mongo.getCollection(config.mongo.collections.krmState);
+
+    try {
+      let id = uuid.v4();
+      task = {
+        _id : isMultiDependency ? task.product : id,
+        id : id,
+        time : new Date().toISOString(),
+        type : task.definition.worker || config.task.defaultWorker,
+        source : 'http://controller.'+config.server.url.hostname,
+        datacontenttype : 'application/json',
+        subject : task.product,
+        data : {
+          name : task.definition.name,
+          required : [task.subject],
+          ready : [],
+          subjectId : task.definition.id,
+          args : task.args
+        }
+      }
+      await collection.insertOne(task);
+    } catch(e) {
+      logger.warn('Failed to insert new task into mongo, attempting update', e);
+
+      try {
+        let resp = await collection.findOneAndUpdate(
+          { _id: ObjectId(task.product) },
+          { $push : {required: task.subject} },
+          { returnOriginal: false }
+        );
+
+        if( resp.value ) {
+          return resp.value;
+        }
+
+        // last ditch attempt.  Really this means something bad happend.
+        // probably an issue with the graph definition where the graphs dependent count
+        // is not equal to the number of products matched
+        await collection.insertOne(task);
+      } catch(e) {
+        logger.error('Failed to add required subject to task in mongo: '+task.subject, e);
       }
     }
-
-    await collection.insertOne(task);
 
     return task;
   }
