@@ -1,4 +1,5 @@
 const Kafka = require('node-rdkafka');
+const logger = require('../../logger');
 
 class Producer {
 
