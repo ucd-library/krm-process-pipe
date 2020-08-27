@@ -1,4 +1,5 @@
 const express = require('express');
+const serveIndex = require('serve-index')
 // const Busboy = require('busboy');
 // const path = require('path');
 // const os = require('os');
@@ -120,6 +121,7 @@ const app = express();
 // }
 
 app.use(express.static(config.fs.nfsRoot));
+app.use(serveIndex(config.fs.nfsRoot, {'icons': true}))
 
 app.listen(3000, async () => {
   logger.info('api listening to port: 3000');
