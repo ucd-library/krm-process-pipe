@@ -212,25 +212,26 @@ class KrmController {
     let isMultiDependency = task.definition.options.dependentCount ? true : false;
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
-    try {
-      let id = uuid.v4();
-      task = {
-        _id : isMultiDependency ? task.product : id,
-        id : id,
-        time : new Date().toISOString(),
-        type : task.definition.worker || config.task.defaultWorker,
-        source : 'http://controller.'+config.server.url.hostname,
-        datacontenttype : 'application/json',
-        subject : task.product,
-        data : {
-          name : task.definition.name,
-          required : [task.subject],
-          ready : [],
-          subjectId : task.definition.id,
-          args : task.args
-        }
+    let id = uuid.v4();
+    let taskMsg = {
+      _id : isMultiDependency ? task.product : id,
+      id : id,
+      time : new Date().toISOString(),
+      type : task.definition.worker || config.task.defaultWorker,
+      source : 'http://controller.'+config.server.url.hostname,
+      datacontenttype : 'application/json',
+      subject : task.product,
+      data : {
+        name : task.definition.name,
+        required : [task.subject],
+        ready : [],
+        subjectId : task.definition.id,
+        args : task.args
       }
-      await collection.insertOne(task);
+    }
+
+    try {
+      await collection.insertOne(taskMsg);
     } catch(e) {
       logger.warn('Failed to insert new task into mongo, attempting update: ', {subject: task.product, required:task.subject}, e);
 
@@ -249,13 +250,13 @@ class KrmController {
         // last ditch attempt.  Really this means something bad happend.
         // probably an issue with the graph definition where the graphs dependent count
         // is not equal to the number of products matched
-        await collection.insertOne(task);
+        await collection.insertOne(taskMsg);
       } catch(e) {
         logger.error('Failed to add required subject to task in mongo: ', {subject: task.product, required:task.subject, updateResponse: resp}, e);
       }
     }
 
-    return task;
+    return taskMsg;
   }
 
   _getDependentCount(subject, opts) {
