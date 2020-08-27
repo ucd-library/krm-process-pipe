@@ -267,7 +267,8 @@ class KrmController {
       logger.error(
         'Failed to insert new task into mongo', {
           subject: task.product, 
-          required:task.subject
+          required:task.subject,
+          mongoResponse: resp
         }, 
         e
       );
