@@ -238,7 +238,7 @@ class KrmController {
       let resp;
       try {
         resp = await collection.findOneAndUpdate(
-          { _id: ObjectId(task.product) },
+          { _id: new ObjectId(task.product) },
           { $push : {required: task.subject} },
           { returnOriginal: false }
         );
