@@ -1,6 +1,7 @@
 const amqp = require('amqplib');
 const logger = require('../logger');
 const config = require('../config');
+const waitUtil = require('../wait-util');
 
 class RabbitMQ {
 
@@ -23,6 +24,8 @@ class RabbitMQ {
     logger.info(`attempting connection to RabbitMQ server: amqp://${this.host}`);
     
     try {
+      await waitUtil(config.rabbitMq.host, config.rabbitMq.port);
+
       this.conn = await amqp.connect(`amqp://${this.host}`, {heartbeat: 60*30});
       this.conn.on('close', () => this.onConnectionClosed());
       this.conn.on('error', e => this.onConnectionClosed(e));

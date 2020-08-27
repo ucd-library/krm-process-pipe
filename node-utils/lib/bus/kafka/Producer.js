@@ -1,5 +1,6 @@
 const Kafka = require('node-rdkafka');
 const logger = require('../../logger');
+const waitUtil = require('../../wait-util');
 
 class Producer {
 
@@ -20,7 +21,10 @@ class Producer {
    * @param {Object} opts 
    */
   connect(opts={}) {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      let [host, port] = this.config['metadata.broker.list'].split(':');
+      await waitUtil(host, port);
+
       this.client.connect(opts, (err, data) => {
         this.client.setPollInterval(100);
         if( err ) reject(err);

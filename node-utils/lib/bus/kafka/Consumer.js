@@ -1,9 +1,11 @@
 const Kafka = require('node-rdkafka');
 const logger = require('../../logger');
+const waitUtil = require('../../wait-util');
 
 class Consumer {
 
   constructor(config) {
+    this.config = config;
     this.client = new Kafka.KafkaConsumer(config);
     this.loopTimer = -1;
     this.loopInterval = 500;
@@ -67,7 +69,10 @@ class Consumer {
    */
   connect(opts={}) {
     this.connectOpts = opts;
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
+      let [host, port] = this.config['metadata.broker.list'].split(':');
+      await waitUtil(host,  port);
+
       this.client.connect(opts, (err, data) => {
         if( err ) reject(err);
         else resolve(data);
@@ -107,11 +112,21 @@ class Consumer {
    * 
    * @param {String|Object|Array} topic 
    */
-  committed(topic) {
+  committed(topic, attempt=0) {
     topic = this._topicHelper(topic);
 
     return new Promise((resolve, reject) => {
       this.client.committed(topic, 10000, (err, result) => {
+        if( err && attempt < 10 ) {
+          setTimeout(async () => {
+            try {
+              attempt++;
+              resolve(await this.committed(topic, attempt))
+            } catch(e) { reject(e) }
+          }, 1000);
+          return;
+        }
+
         if( err ) reject(err);
         else resolve(result);
       });
