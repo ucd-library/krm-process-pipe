@@ -216,10 +216,10 @@ class KrmController {
     let isMultiDependency = task.definition.options.dependentCount ? true : false;
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
-    let id = uuid.v4();
+    let uid = uuid.v4();
+    let id = isMultiDependency ? task.product : uid;
     let taskMsg = {
-      _id : isMultiDependency ? task.product : id,
-      id : id,
+      id : uid,
       time : new Date().toISOString(),
       type : task.definition.worker || config.task.defaultWorker,
       source : 'http://controller.'+config.server.url.hostname,
@@ -244,7 +244,7 @@ class KrmController {
       // We return the new doc in both cases for proper error logging if
       // things fail.
       resp = await collection.findOneAndUpdate(
-        { _id : taskMsg._id },
+        { _id : id },
         { $setOnInsert: taskMsg},
         { 
           returnOriginal: false,
@@ -253,7 +253,7 @@ class KrmController {
       );
 
       resp = await collection.findOneAndUpdate(
-        { _id : taskMsg._id },
+        { _id : id },
         { $addToSet : {'data.required': task.subject} },
         { returnOriginal: false }
       );
