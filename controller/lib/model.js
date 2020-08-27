@@ -4,7 +4,7 @@ const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
 const mongo = state.mongo;
-const ObjectId = mongo.ObjectId;
+// const ObjectId = mongo.ObjectId;
 
 class KrmController {
 
@@ -100,10 +100,14 @@ class KrmController {
   async onMessage(msg) {
     this.run = false;
 
-    logger.info(`handling kafka message: ${kafka.utils.getMsgId(msg)}`);
-    msg = JSON.parse(msg.value.toString('utf-8'));
-    
-    this._onSubjectReady(msg.subject, msg.fromMessage);
+    try {
+      logger.info(`handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
+      msg = JSON.parse(msg.value.toString('utf-8'));
+      
+      await this._onSubjectReady(msg.subject, msg.fromMessage);
+    } catch(e) {
+      logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg.value.toString('utf-8'), e);
+    }
   }
 
   async _onSubjectReady(subject, fromMessage) {
@@ -223,37 +227,50 @@ class KrmController {
       subject : task.product,
       data : {
         name : task.definition.name,
-        required : [task.subject],
+        required : [],
         ready : [],
         subjectId : task.definition.id,
         args : task.args
       }
     }
 
+    let resp;
     try {
-      await collection.insertOne(taskMsg);
-    } catch(e) {
-      logger.warn('Failed to insert new task into mongo, attempting update: ', {subject: task.product, required:task.subject}, e);
-
-      let resp;
-      try {
-        resp = await collection.findOneAndUpdate(
-          { subject : task.product },
-          { $push : {required: task.subject} },
-          { returnOriginal: false }
-        );
-
-        if( resp.value ) {
-          return resp.value;
+      // we have to do this in two steps :(
+      // we don't know if the document exists, so we have to use this
+      // update/$setOnInsert command to only insert if it doesn't exist
+      // however, this throws an error if we try to add the 
+      // $addToSet command as well. so we do that as a second call, lame.
+      // We return the new doc in both cases for proper error logging if
+      // things fail.
+      resp = await collection.findOneAndUpdate(
+        { _id : taskMsg._id },
+        { $setOnInsert: taskMsg},
+        { 
+          returnOriginal: false,
+          upsert: true
         }
+      );
 
-        // last ditch attempt.  Really this means something bad happend.
-        // probably an issue with the graph definition where the graphs dependent count
-        // is not equal to the number of products matched
-        await collection.insertOne(taskMsg);
-      } catch(e) {
-        logger.error('Failed to add required subject to task in mongo: ', {subject: task.product, required:task.subject, updateResponse: resp}, e);
+      resp = await collection.findOneAndUpdate(
+        { _id : taskMsg._id },
+        { $addToSet : {'data.required': task.subject} },
+        { returnOriginal: false }
+      );
+
+      if( resp.value ) {
+        return resp.value;
       }
+
+      throw new Error('Mongo upsert failed');
+    } catch(e) {
+      logger.error(
+        'Failed to insert new task into mongo', {
+          subject: task.product, 
+          required:task.subject
+        }, 
+        e
+      );
     }
 
     return taskMsg;
