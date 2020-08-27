@@ -234,8 +234,9 @@ class KrmController {
     } catch(e) {
       logger.warn('Failed to insert new task into mongo, attempting update: ', {subject: task.product, required:task.subject}, e);
 
+      let resp;
       try {
-        let resp = await collection.findOneAndUpdate(
+        resp = await collection.findOneAndUpdate(
           { _id: ObjectId(task.product) },
           { $push : {required: task.subject} },
           { returnOriginal: false }
