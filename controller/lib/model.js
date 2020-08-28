@@ -106,7 +106,7 @@ class KrmController {
       
       await this._onSubjectReady(msg.subject, msg.fromMessage);
     } catch(e) {
-      logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg.value.toString('utf-8'), e);
+      logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg, e);
     }
   }
 
@@ -148,7 +148,7 @@ class KrmController {
         taskMsg.data.command = task.definition.command;
         if( typeof taskMsg.data.command === 'function' ) {
           taskMsg.data.command = taskMsg.data.command(
-            task, {
+            taskMsg, {
               fs : config.fs,
               uri : new URL(taskMsg.subject)
             }

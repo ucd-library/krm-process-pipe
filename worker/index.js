@@ -23,9 +23,10 @@ class Worker {
     logger.info('Worker connecting to queue: '+config.worker.queue);
     await this.queue.connect();
     await this.queue.createQueues(config.worker.queue);
-    await this.queue.listen(config.worker.queue, msg => this.onMessage(msg));
 
     await this.kafkaProducer.connect();
+
+    await this.queue.listen(config.worker.queue, msg => this.onMessage(msg));
   }
 
   async onMessage(queueMsg) {
