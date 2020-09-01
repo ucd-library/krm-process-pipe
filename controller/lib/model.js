@@ -58,6 +58,25 @@ class KrmController {
   
     await this.kafkaConsumer.assign(this.topics);
     await this.listen();
+
+    setInterval(() => this.checkDelayWindow(), 1000);
+  }
+
+  async checkDelayWindow() {
+    let collection = await mongo.getCollection(config.mongo.collections.krmState);
+    let now = Date.now()
+
+    const cursor = collection.find({
+      $or : [
+        {'data.lastUpdated' : {$le : now - (5 * 60 * 1000)}},
+        {'data.readyTime' : {$le : now}}
+      ]
+    });
+
+    let document;
+    while ((document = await cursor.next())) {
+      await this.sendTask(document);
+    }
   }
 
   sendSubjectReady(subject) {
@@ -141,32 +160,44 @@ class KrmController {
       if( item && dependentCount === item.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
-        // this.state.remove(taskMsg.id);
-        await collection.deleteOne({id: taskMsg.id});
-
-        // handle functional commands
-        taskMsg.data.command = task.definition.command;
-        if( typeof taskMsg.data.command === 'function' ) {
-          taskMsg.data.command = taskMsg.data.command(
-            taskMsg, {
-              fs : config.fs,
-              uri : new URL(taskMsg.subject)
+        if( task.definition.options.delay ) {
+          await collection.updateOne({id: taskMsg.id}, {
+            $set : {
+              readyTime :  Date.now()+task.definition.options.delay,
             }
-          );
+          });
+          return;
         }
 
-        // stringify task data
-        let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
-        taskMsg.data = JSON.stringify(taskMsg.data);
-
-        logger.info('Sending task message to: '+topicName, 'subject='+taskMsg.subject);
-        this.kafkaProducer.produce({
-          topic : topicName,
-          value: taskMsg,
-          key : this.groupId
-        });
+        await this.sendTask(taskMsg);
       }
     }
+  }
+
+  async sendTask(taskMsg) {
+    await collection.deleteOne({id: taskMsg.id});
+
+    // handle functional commands
+    taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].options.command;
+    if( typeof taskMsg.data.command === 'function' ) {
+      taskMsg.data.command = taskMsg.data.command(
+        taskMsg, {
+          fs : config.fs,
+          uri : new URL(taskMsg.subject)
+        }
+      );
+    }
+
+    // stringify task data
+    let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
+    taskMsg.data = JSON.stringify(taskMsg.data);
+
+    logger.info('Sending task message to: '+topicName, 'subject='+taskMsg.subject);
+    this.kafkaProducer.produce({
+      topic : topicName,
+      value: taskMsg,
+      key : this.groupId
+    });
   }
 
   async _generateTaskMsg(task) {
