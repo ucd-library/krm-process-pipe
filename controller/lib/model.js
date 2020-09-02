@@ -147,6 +147,13 @@ class KrmController {
     for( let task of dependentTasks ) {
       let taskMsg = await this._generateTaskMsg(task);
 
+      // the dependent tasks array is an array of ALL depended tasks.
+      // Even children of children.  We only want to add subjects of 
+      // direct children to the 'ready' array. And preform the additional
+      // action of see if it's time to send.  Otherwise, we just want
+      // to generate task message above (this adds subject to required array)
+      if( task.subject !== subject ) continue;
+
       if( !taskMsg.data.ready.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
         taskMsg.data.ready.push(subject);
@@ -164,7 +171,7 @@ class KrmController {
       let dependentCount = this._getDependentCount(task.subject, task.definition.options);
       let item = await collection.findOne({id: taskMsg.id}, {'data.ready': 1});
 
-      if( item && dependentCount === item.data.ready.length ) {
+      if( item && dependentCount >= item.data.ready.length ) {
         taskMsg.data.dependenciesReady = true;
 
         if( task.definition.options.delay ) {
