@@ -66,16 +66,23 @@ class KrmController {
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
     let now = Date.now()
 
-    const cursor = collection.find({
-      $or : [
-        {'data.lastUpdated' : {$le : now - (5 * 60 * 1000)}},
-        {'data.readyTime' : {$le : now}}
-      ]
-    });
+    const cursor = collection.find();
 
     let document;
     while ((document = await cursor.next())) {
-      await this.sendTask(document);
+      if( document.data.readyTime < now ) {
+        await this.sendTask(document);
+        continue;
+      }
+
+      let def = this.dependencyGraph.graph[taskMsg.data.subjectId];
+      let timeout = def.options.timeout || (5 * 60 * 1000);
+      if( document.data.lastUpdated < now - timeout ) {
+        await this.sendTask(document, {
+          reason : 'window timeout expired, (lastUpdated < now - timeout)',
+          now, timeout
+        });
+      }
     }
   }
 
@@ -174,7 +181,8 @@ class KrmController {
     }
   }
 
-  async sendTask(taskMsg) {
+  async sendTask(taskMsg, controllerMessage) {
+    let collection = await mongo.getCollection(config.mongo.collections.krmState);
     await collection.deleteOne({id: taskMsg.id});
 
     // handle functional commands
@@ -186,6 +194,10 @@ class KrmController {
           uri : new URL(taskMsg.subject)
         }
       );
+    }
+
+    if( controllerMessage ) {
+      taskMsg.data.controllerMessage = controllerMessage;
     }
 
     // stringify task data
