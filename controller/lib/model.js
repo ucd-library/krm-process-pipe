@@ -186,7 +186,7 @@ class KrmController {
     await collection.deleteOne({id: taskMsg.id});
 
     // handle functional commands
-    taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].options.command;
+    taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
     if( typeof taskMsg.data.command === 'function' ) {
       taskMsg.data.command = taskMsg.data.command(
         taskMsg, {
