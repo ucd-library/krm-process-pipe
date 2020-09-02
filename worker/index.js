@@ -52,30 +52,45 @@ class Worker {
         });
         await this.queue.ack(queueMsg);
       }
-      
-      if( !msgData.data.failures ) msgData.data.failures = [];
-      msgData.data.failures.push({
-        message : e.message,
-        stack : e.stack,
-        cmd : e.cmd,
-        code : e.code,
-        stdout : e.stdout,
-        stderr : e.stderr
-      });
-
-      msgData.data = JSON.stringify(msgData.data);
-      msgData.content = Buffer.from(JSON.stringify(msgData));
-
-      if( msgData.data.failures.length < config.worker.maxRetries ) {
-        await this.queue.nack(queueMsg);
-        return;
-      }
 
       this.sendResponse(msgData, {
         state: 'failed',
-        failures: msgData.failures
+        failures: [{
+          message : e.message,
+          stack : e.stack,
+          cmd : e.cmd,
+          code : e.code,
+          stdout : e.stdout,
+          stderr : e.stderr
+        }]
       });
       await this.queue.ack(queueMsg);
+
+      // TODO
+
+      // msgData.data = JSON.stringify(msgData.data);
+      // msgData.content = Buffer.from(JSON.stringify(msgData));
+
+      // if( !msgData.data.failures ) msgData.data.failures = [];
+      // msgData.data.failures.push({
+      //   message : e.message,
+      //   stack : e.stack,
+      //   cmd : e.cmd,
+      //   code : e.code,
+      //   stdout : e.stdout,
+      //   stderr : e.stderr
+      // });
+
+      // if( msgData.data.failures.length < config.worker.maxRetries ) {
+      //   await this.queue.nack(queueMsg);
+      //   return;
+      // }
+
+      // this.sendResponse(msgData, {
+      //   state: 'failed',
+      //   failures: msgData.data.failures
+      // });
+      // await this.queue.ack(queueMsg);
     }
   }
 
