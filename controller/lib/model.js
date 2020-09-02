@@ -59,7 +59,7 @@ class KrmController {
     await this.kafkaConsumer.assign(this.topics);
     await this.listen();
 
-    setInterval(() => this.checkDelayWindow(), 1000);
+    setInterval(() => this.checkDelayWindow(), 5000);
   }
 
   async checkDelayWindow() {
