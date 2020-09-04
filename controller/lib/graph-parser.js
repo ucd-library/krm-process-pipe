@@ -33,7 +33,7 @@ class GraphParser {
 
         depend.subject.path.args.forEach((argname, i) => {
           dependArgs[argname] = match[i+1];
-          product = product.replace(new RegExp(`\\/:${argname}(\\/|$)`), '/'+dependArgs[argname]+'/');
+          product = product.replace(new RegExp(`{${argname}}`), dependArgs[argname]);
         });
         product = product.replace(/\/$/, '');
 
@@ -60,30 +60,29 @@ class GraphParser {
     subject = new URL(subject);
 
     subject = {
-      href: subject.href,
+      href: decodeURIComponent(subject.href),
       origin: subject.origin,
       protocol: subject.protocol,
       host: subject.host,
       hostname: subject.hostname,
       port: subject.port,
-      pathname: subject.pathname,
+      pathname: decodeURIComponent(subject.pathname),
       search: subject.search,
       searchParams: subject.searchParams,
       hash: subject.hash,
       path : {
         args : [],
-        parts : subject.pathname.replace(/^\//, '').split('/')
+        parts : decodeURIComponent(subject.pathname).replace(/^\//, '').split('/')
       }
     }
 
     let regex = escapeRegExp(subject.href);
-    subject.path.parts.forEach((p, i) => {
-      if( p.match(/^:.*/) ) {
-        let argname = p.replace(/^:/, '');
-        subject.path.args.push(argname);
-        regex = regex.replace(new RegExp(`/:${argname}/`), '/([A-Za-z0-9_\\-\\:]+)/');
-      }
-    });
+    let parts = subject.href.match(/{[a-zA-Z0-9_\\-]+}/g) || [];
+    for( let part of parts ) {
+      let argname = part.replace(/(^{|}$)/g, '');
+      subject.path.args.push(argname);
+      regex = regex.replace(part, '([A-Za-z0-9_\\-]+)');
+    }
 
     subject.path.regex = new RegExp('^'+regex+'$');
     return subject;
@@ -92,7 +91,7 @@ class GraphParser {
 }
 
 function escapeRegExp(text) {
-  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+  return text.replace(/[-[\]()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
 module.exports = GraphParser;

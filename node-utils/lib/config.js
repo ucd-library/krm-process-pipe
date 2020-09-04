@@ -18,6 +18,11 @@ module.exports = {
     fsExpire : '0 0-23 * * *'
   },
 
+  controller : {
+    // WARNING: this will store all outgoing messages in MongoDB so they can be queried
+    debug : process.env.DEBUG_CONTROLLER === 'true' ? true : false
+  },
+
   fs : {
     workerRoot : process.env.WORKER_FS_ROOT || '/storage/worker',
     nfsRoot : process.env.NFS_ROOT || '/storage/nfs',
@@ -63,7 +68,8 @@ module.exports = {
   mongo : {
     dbName : 'krm',
     collections : {
-      krmState : 'krm-state'
+      krmState : 'state',
+      krmDebug : 'debug'
     },
     host : env.MONGO_HOST || 'mongo',
     port : env.MONGO_PORT || 27017,

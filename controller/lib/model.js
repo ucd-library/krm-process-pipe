@@ -70,7 +70,7 @@ class KrmController {
 
     let document;
     while ((document = await cursor.next())) {
-      if( document.data.readyTime < now ) {
+      if( document.data.delayReadyTime && document.data.delayReadyTime < now ) {
         await this.sendTask(document);
         continue;
       }
@@ -127,7 +127,7 @@ class KrmController {
     this.run = false;
 
     try {
-      logger.info(`handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
+      logger.info(`Handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
       msg = JSON.parse(msg.value.toString('utf-8'));
       
       await this._onSubjectReady(msg.subject, msg.fromMessage);
@@ -137,8 +137,8 @@ class KrmController {
   }
 
   async _onSubjectReady(subject, fromMessage) {
-    let dependentTasks = this.dependencyGraph.match(subject);
-    if( !dependentTasks ) return;
+    let dependentTasks = this.dependencyGraph.match(subject) || [];
+    if( !dependentTasks.length ) return;
 
     logger.info('Handling subject with tasks: '+subject);
 
@@ -160,7 +160,7 @@ class KrmController {
       }
       await collection.updateOne({id: taskMsg.id}, {
         $set : {
-          lastUpdated : taskMsg.data.lastUpdated,
+          'data.lastUpdated' : taskMsg.data.lastUpdated,
         },
         $addToSet : {
           'data.ready' : subject
@@ -168,20 +168,29 @@ class KrmController {
       });
 
       // now check to see if the task can execute
-      let dependentCount = this._getDependentCount(task.subject, task.definition.options);
-      let item = await collection.findOne({id: taskMsg.id}, {'data.ready': 1});
+      taskMsg = await collection.findOne({id: taskMsg.id});
+      if( !taskMsg ) return;
+      if( taskMsg.data.dependenciesReady ) return;
 
-      if( item && dependentCount >= item.data.ready.length ) {
-        taskMsg.data.dependenciesReady = true;
+      let ready = await this._ready(subject, task.definition.options, taskMsg);
 
-        if( task.definition.options.delay ) {
+      if( ready ) {
+
+        if( task.definition.options.delay && !taskMsg.data.readyTime ) {
           await collection.updateOne({id: taskMsg.id}, {
             $set : {
-              readyTime :  Date.now()+task.definition.options.delay,
+              'data.delayReadyTime' :  Date.now()+task.definition.options.delay,
             }
           });
           return;
         }
+
+        taskMsg.data.dependenciesReady = Date.now();
+        await collection.updateOne({id: taskMsg.id}, {
+          $set : {
+            'data.dependenciesReady' : taskMsg.data.dependenciesReady,
+          }
+        });
 
         await this.sendTask(taskMsg);
       }
@@ -190,21 +199,33 @@ class KrmController {
 
   async sendTask(taskMsg, controllerMessage) {
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
-    await collection.deleteOne({id: taskMsg.id});
+    let resp = await collection.deleteOne({id: taskMsg.id});
+
+    if( resp.result.n != 1 ) {
+      logger.warn('Controller did not find message during delete, ignorning', taskMsg, resp);
+      return;
+    }
 
     // handle functional commands
     taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
     if( typeof taskMsg.data.command === 'function' ) {
       taskMsg.data.command = taskMsg.data.command(
-        taskMsg, {
-          fs : config.fs,
-          uri : new URL(taskMsg.subject)
-        }
+        new URL(taskMsg.subject),
+        taskMsg,
+        config
       );
     }
 
     if( controllerMessage ) {
       taskMsg.data.controllerMessage = controllerMessage;
+    }
+
+    // if the debug flag is set, store all messages in debug collection
+    if( config.controller.debug ) {
+      let dc = await mongo.getCollection(config.mongo.collections.krmDebug);
+      let copy = Object.assign({}, taskMsg);
+      delete copy._id;
+      await dc.insert(copy);
     }
 
     // stringify task data
@@ -327,11 +348,13 @@ class KrmController {
     return taskMsg;
   }
 
-  _getDependentCount(subject, opts) {
-    if( typeof opts.dependentCount === 'function' ) {
-      return parseInt(opts.dependentCount(subject, config.fs.nfsRoot));
+  _ready(subject, opts, msg) {
+    if( opts.ready ) {
+      return opts.ready(new URL(subject), msg, config);
     }
-    return parseInt(opts.dependentCount || 1);
+
+    let dependentCount = parseInt(opts.dependentCount || 1);
+    return (dependentCount >= msg.data.ready.length);
   }
 
 }
