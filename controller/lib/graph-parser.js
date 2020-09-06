@@ -40,6 +40,18 @@ class GraphParser {
         this.graph[key].subject.path.args.forEach(argname => {
           args[argname] = dependArgs[argname]; 
         });
+
+        // TODO: if a constraint arg is present and doesn't match, ignore!
+        if( depend.constraints ) {
+          match = true;
+          for( let key in depend.constraints ) {
+            if( !args[key].match(depend.constraints[key]) ) {
+              match = false;
+              break;
+            }
+          }
+          if( !match ) continue;
+        }
   
         let item = {
           subject : subjectHref,

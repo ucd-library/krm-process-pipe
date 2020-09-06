@@ -118,6 +118,7 @@ class Consumer {
     return new Promise((resolve, reject) => {
       this.client.committed(topic, 10000, (err, result) => {
         if( err && attempt < 10 ) {
+          logger.warn('Failed to get get committed offset, will try again.  attempt='+attempt, err, result);
           setTimeout(async () => {
             try {
               attempt++;
@@ -127,6 +128,7 @@ class Consumer {
           return;
         }
 
+        // logger.info('committed offset result', topic, err, result);
         if( err ) reject(err);
         else resolve(result);
       });

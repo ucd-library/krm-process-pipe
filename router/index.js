@@ -45,6 +45,11 @@ class Router {
 
       let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);
       let topic = await this.kafkaConsumer.committed(topicName);
+      if( topic[0].offset === undefined ) {
+        logger.info('No offset set for topic', topic, 'setting offset value to low water mark: '+watermarks.lowOffset);
+        topic[0].offset = watermarks.lowOffset;
+      }
+
       topics.push(topic[0]);
       logger.info(`Router (group.id=${this.groupId}) kafka status=`, topic, 'watermarks=', watermarks);
     }

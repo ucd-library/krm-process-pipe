@@ -54,6 +54,11 @@ class KrmController {
 
     let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(config.kafka.topics.subjectReady);
     this.topics = await this.kafkaConsumer.committed(config.kafka.topics.subjectReady);
+    if( this.topics[0].offset === undefined ) {
+      logger.info('No offset set for topic', this.topics, 'setting offset value to low water mark: '+watermarks.lowOffset);
+      this.topics[0].offset = watermarks.lowOffset;
+    }
+    
     logger.info(`Controller (group.id=${this.groupId}) kafka status=`, this.topics, 'watermarks=', watermarks);
   
     await this.kafkaConsumer.assign(this.topics);
@@ -284,7 +289,14 @@ class KrmController {
   }
 
   async createTask(task) {
-    let isMultiDependency = task.definition.options.dependentCount ? true : false;
+    let isMultiDependency = false;
+
+    if( task.definition.options.ready ) {
+      isMultiDependency = true;
+    } else if( task.definition.options.dependentCount || task.definition.options.dependentCount > 1 ) {
+      isMultiDependency = true;
+    }
+
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
     let uid = uuid.v4();
