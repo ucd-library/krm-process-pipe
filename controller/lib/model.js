@@ -366,7 +366,7 @@ class KrmController {
     }
 
     let dependentCount = parseInt(opts.dependentCount || 1);
-    return (dependentCount >= msg.data.ready.length);
+    return (dependentCount <= msg.data.ready.length);
   }
 
 }
