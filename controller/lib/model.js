@@ -132,7 +132,7 @@ class KrmController {
     this.run = false;
 
     try {
-      logger.info(`Handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
+      logger.debug(`Handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
       msg = JSON.parse(msg.value.toString('utf-8'));
       
       await this._onSubjectReady(msg.subject, msg.fromMessage);
