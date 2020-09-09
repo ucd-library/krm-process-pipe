@@ -5,5 +5,6 @@ module.exports = {
   config : require('./lib/config'),
   logger : require('./lib/logger'),
   StartSubjectModel : require('./lib/start-subject-model'),
-  waitUtil : require('./lib/wait-util')
+  waitUtil : require('./lib/wait-util'),
+  utils : require('./lib/utils')
 }

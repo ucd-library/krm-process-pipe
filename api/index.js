@@ -1,130 +1,56 @@
 const express = require('express');
-const serveIndex = require('serve-index')
-// const Busboy = require('busboy');
-// const path = require('path');
-// const os = require('os');
-// const fs = require('fs-extra');
-// const uuid = require('uuid');
-const {logger, config, bus} = require('@ucd-lib/krm-node-utils');
+const serveIndex = require('serve-index');
+const {logger, config} = require('@ucd-lib/krm-node-utils');
+const httpProxy = require('http-proxy');
 
-// const kafka = bus.kafka;
+const cors = require('cors')({
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  exposedHeaders : ['content-type', 'link', 'content-disposition', 'content-length', 'pragma', 'expires', 'cache-control'],
+  allowedHeaders : ['authorization', 'range', 'cookie', 'content-type', 'prefer', 'slug', 'cache-control', 'accept'],
+  credentials: true
+});
+
 const app = express();
+const server = require('http').createServer(app);
 
-// const kafkaProducer = new kafka.Producer({
-//   'metadata.broker.list': config.kafka.host+':'+config.kafka.port
-// });
+const proxy = httpProxy.createProxyServer();
+proxy.on('error', err => logger.warn('api proxy error', err));
 
-// app.use((req, res, next) => {
-//   if( req.method !== 'POST' ) return next();
+const wsServiceMap = {};
 
-//   let busboy = new Busboy({ headers: req.headers });
-//   req.body = {};
+app.use(cors);
 
-//   busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-//     // TODO: this needs to be a docker mount!
-//     let tmpFile = path.join(os.tmpdir(), Math.random()*Date.now()+'');
-//     file.pipe(fs.createWriteStream(tmpFile));
-//     req.body[fieldname] = {fieldname, file, filename, encoding, mimetype, tmpFile};
-//   });
-//   busboy.on('field', (fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) => {
-//     req.body[fieldname] = {fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype};
-//   });
-//   busboy.on('finish', () => next());
+// handle websocket upgrade requests
+server.on('upgrade', (req, socket, head) => {
+  for( let hostname in wsServiceMap ) {
+    if( wsServiceMap[hostname].test(req.url) ) {
+      proxy.ws(req, socket, head, {
+        target: 'ws://'+hostname+':3000'+req.url,
+        ignorePath: true
+      });
+      return;
+    }
+  }
+});
 
-//   req.pipe(busboy);
-// });
+// register services
+for( let service of config.api.services ) {
+  logger.info(`Creating api service route /_/${service.route} to http://${service.hostname}`);
+  
+  // required to handle websocket upgrade requests
+  wsServiceMap[service.hostname] = new RegExp(`^/_/${service.route}(/.*|$)`);
 
-// async function cleanFiles(req) {
-//   if( !req.body ) return;
-//   try {
-//     for( let key in req.body ) {
-//       let param = req.body[key];
-//       if( !param.file ) continue;
-
-//       try {
-//         if( fs.existsSync(param.tmpFile) ) {
-//           await fs.unlink(param.tmpFile);
-//         }
-//       } catch(e) {
-//         logger.error('Failed to clean files', req.body, e);
-//       }
-      
-//     }
-//   } catch(e) {
-//     logger.error('Failed to clean files', req.body, e);
-//   }
-// }
-
-// app.post('/', async (req, res) => {
-//   if( !req.body.path ) {
-//     return res.status(400).json({
-//       error: {
-//         message : 'Invalid parameters'
-//       },
-//       details : 'Path parameters required'
-//     });
-//   }
-
-//   let subject;
-//   try {
-//     let nfsPath = path.join(config.fs.nfsRoot, req.body.path.val, req.body.file.filename);
-
-//     if( !req.body.file ) {
-//       if( !fs.existsSync(nfsPath) ) {
-//         return res.status(400).json({
-//           error: {
-//             message : 'Invalid parameters'
-//           },
-//           details : 'File not provided and path does not already exist on disk'
-//         });
-//       }
-//     } else {
-//       if( fs.existsSync(nfsPath) ) {
-//         await fs.unlink(nfsPath);
-//       }
-//       await fs.move(req.body.file.tmpFile, nfsPath);
-//     }
-
-//     subject = 'file://'+path.join('/', req.body.path.val, req.body.file.filename);
-//     await sendSubjectReady(subject);
-//     res.send({success: true, subject})
-//   } catch(e) {
-//     logger.error('Failed to proxy subject: '+subject, e);
-//     return res.status(400).json({
-//       error: {
-//         message : e.details,
-//         stack : e.stack
-//       }
-//     });
-//   }
-
-//   cleanFiles(req);
-// });
-
-// function sendSubjectReady(subject) {
-//   let value = {
-//     id : uuid.v4(),
-//     time : new Date().toISOString(),
-//     type : 'new.subject',
-//     source : 'http://controller.'+config.server.url.hostname,
-//     datacontenttype : 'application/json',
-//     subject
-//   }
-
-//   logger.info('Api sending subject ready to kafka: ', subject)
-
-//   return kafkaProducer.produce({
-//     topic : config.kafka.topics.subjectReady,
-//     value,
-//     key : 'api'
-//   });
-// }
+  app.use(wsServiceMap[service.hostname], (req, res) => {
+    proxy.web(req, res, {
+      target: 'http://'+service.hostname+':3000'+req.originalUrl,
+      ignorePath: true
+    });
+  });
+}
 
 app.use(express.static(config.fs.nfsRoot));
 app.use(serveIndex(config.fs.nfsRoot, {'icons': true}))
 
-app.listen(3000, async () => {
+server.listen(3000, async () => {
   logger.info('api listening to port: 3000');
-  // await kafkaProducer.connect();
-  // logger.info('api connected to kafka, ready to process');
 });

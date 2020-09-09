@@ -1,4 +1,6 @@
 const {URL} = require('url');
+const {utils} = require('@ucd-lib/krm-node-utils');
+
 class GraphParser {
 
   constructor(graph) {
@@ -9,13 +11,13 @@ class GraphParser {
     this.graph = graph.graph;
 
     for( let key in this.graph ) {
-      this.graph[key].subject = this.parseSubject(key);
+      this.graph[key].subject = utils.subjectParser(key);
       this.graph[key].id = key;
       if( !this.graph[key].options ) {
         this.graph[key].options = {};
       }
       for( let depend of this.graph[key].dependencies ) {
-        depend.subject = this.parseSubject(depend.subject);
+        depend.subject = utils.subjectParser(depend.subject);
       }
     }
   }
@@ -68,42 +70,6 @@ class GraphParser {
     return dependents;
   }
 
-  parseSubject(subject) {
-    subject = new URL(subject);
-
-    subject = {
-      href: decodeURIComponent(subject.href),
-      origin: subject.origin,
-      protocol: subject.protocol,
-      host: subject.host,
-      hostname: subject.hostname,
-      port: subject.port,
-      pathname: decodeURIComponent(subject.pathname),
-      search: subject.search,
-      searchParams: subject.searchParams,
-      hash: subject.hash,
-      path : {
-        args : [],
-        parts : decodeURIComponent(subject.pathname).replace(/^\//, '').split('/')
-      }
-    }
-
-    let regex = escapeRegExp(subject.href);
-    let parts = subject.href.match(/{[a-zA-Z0-9_\\-]+}/g) || [];
-    for( let part of parts ) {
-      let argname = part.replace(/(^{|}$)/g, '');
-      subject.path.args.push(argname);
-      regex = regex.replace(part, '([A-Za-z0-9_\\-]+)');
-    }
-
-    subject.path.regex = new RegExp('^'+regex+'$');
-    return subject;
-  }
-
-}
-
-function escapeRegExp(text) {
-  return text.replace(/[-[\]()*+?.,\\^$|#\s]/g, '\\$&');
 }
 
 module.exports = GraphParser;

@@ -33,6 +33,19 @@ module.exports = {
     defaultWorker : 'default.casita.library.ucdavis.edu'
   },
 
+  api : {
+    services : (process.env.API_SERVICES || '')
+      .trim()
+      .split(' ')
+      .map(service => {
+        service = service.trim().split(':');
+        if( service.length === 1 ) {
+          return {hostname: service[0], route: service[0]}
+        }
+        return {hostname: service[0], route: service[1]}
+      })
+  },
+
   kafka : {
     host : env.KAFKA_HOST || 'kafka',
     port : env.KAFKA_PORT || 9092,
