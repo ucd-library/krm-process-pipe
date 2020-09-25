@@ -42,7 +42,7 @@ class Worker {
 
       await this.queue.ack(queueMsg);
     } catch(e) {
-      logger.error('Worker failed to run msg', e, queueMsg);
+      logger.warn('Worker failed to run msg', e, queueMsg);
 
       if( !msgData ) {
         logger.error('Worker got a really bad message', queueMsg.content.toString());
@@ -53,44 +53,32 @@ class Worker {
         await this.queue.ack(queueMsg);
       }
 
+      msgData.data = JSON.stringify(msgData.data);
+      msgData.content = Buffer.from(JSON.stringify(msgData));
+
+      if( !msgData.data.failures ) msgData.data.failures = [];
+      msgData.data.failures.push({
+        message : e.message,
+        stack : e.stack,
+        cmd : e.cmd,
+        code : e.code,
+        stdout : e.stdout,
+        stderr : e.stderr
+      });
+
+      if( msgData.data.failures.length < config.worker.maxRetries ) {
+        logger.warn('Worker retry message, failures less than max retries ', msgData.data.failures.length, config.worker.maxRetries, msgData);
+        await this.queue.send(msgData.type, msgData);
+        await this.queue.ack(queueMsg);
+        return;
+      }
+
+      logger.error('Failed to run message '+config.worker.maxRetries+' times', msgData);
       this.sendResponse(msgData, {
         state: 'failed',
-        failures: [{
-          message : e.message,
-          stack : e.stack,
-          cmd : e.cmd,
-          code : e.code,
-          stdout : e.stdout,
-          stderr : e.stderr
-        }]
+        failures: msgData.data.failures
       });
       await this.queue.ack(queueMsg);
-
-      // TODO
-
-      // msgData.data = JSON.stringify(msgData.data);
-      // msgData.content = Buffer.from(JSON.stringify(msgData));
-
-      // if( !msgData.data.failures ) msgData.data.failures = [];
-      // msgData.data.failures.push({
-      //   message : e.message,
-      //   stack : e.stack,
-      //   cmd : e.cmd,
-      //   code : e.code,
-      //   stdout : e.stdout,
-      //   stderr : e.stderr
-      // });
-
-      // if( msgData.data.failures.length < config.worker.maxRetries ) {
-      //   await this.queue.nack(queueMsg);
-      //   return;
-      // }
-
-      // this.sendResponse(msgData, {
-      //   state: 'failed',
-      //   failures: msgData.data.failures
-      // });
-      // await this.queue.ack(queueMsg);
     }
   }
 
@@ -105,15 +93,6 @@ class Worker {
       let fullSubjectPath = path.join(config.fs.nfsRoot, uri.pathname);
       let exists = fs.existsSync(fullSubjectPath);
 
-      // if( exists && !msg.data.force ) {
-      //   // logger.warn('Ignoring task, subject file already exists: '+uri.pathname);
-      //   // this.sendResponse(msg, {
-      //   //   state : 'ignored',
-      //   //   details : 'Subject file already exists'
-      //   // });
-      //   // return;
-
-      // } else 
       if( exists ) {
         logger.info('Subject file already exists: '+uri.pathname);
       }

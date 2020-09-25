@@ -48,8 +48,7 @@ for( let service of config.api.services ) {
   });
 }
 
-app.use(express.static(config.fs.nfsRoot));
-app.use(serveIndex(config.fs.nfsRoot, {'icons': true}))
+app.use(express.static(config.fs.nfsRoot), serveIndex(config.fs.nfsRoot, {'icons': true}));
 
 server.listen(3000, async () => {
   logger.info('api listening to port: 3000');

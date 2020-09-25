@@ -22,7 +22,8 @@ class Router {
     this.kafkaConsumer = new kafka.Consumer({
       'group.id': this.groupId,
       'metadata.broker.list': config.kafka.host+':'+config.kafka.port,
-      'enable.auto.commit': true
+      'enable.auto.commit': false,
+      'auto.offset.reset' : 'earliest'
     });
     await this.kafkaConsumer.connect();
 
@@ -35,26 +36,15 @@ class Router {
       }
     }
 
-    let topics = [];
     for( let topicName of Object.keys(allTopics) ) {
       await kafka.utils.ensureTopic({
         topic: topicName,
-        num_partitions: 1,
+        num_partitions: config.kafka.partitionsPerTopic,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
-
-      let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);
-      let topic = await this.kafkaConsumer.committed(topicName);
-      if( topic[0].offset === undefined ) {
-        logger.info('No offset set for topic', topic, 'setting offset value to low water mark: '+watermarks.lowOffset);
-        topic[0].offset = watermarks.lowOffset;
-      }
-
-      topics.push(topic[0]);
-      logger.info(`Router (group.id=${this.groupId}) kafka status=`, topic, 'watermarks=', watermarks);
     }
 
-    await this.kafkaConsumer.assign(topics);
+    await this.kafkaConsumer.subscribe(Object.keys(allTopics));
     await this.listen();
   }
 

@@ -4,37 +4,54 @@ const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
 const mongo = state.mongo;
-// const ObjectId = mongo.ObjectId;
 
+/**
+ * @class KrmController
+ * @description Both a source and a sink for kafka events.  Listens to the
+ * config.kafka.topics.subjectReady topic.  For each message: 
+ *  - Looks up message subject in dependency graph
+ *  - Creates a new task for each dependency or adds subject to task if task already exists
+ *  - Checks if task has all subjects required to execute
+ *  - Places task message on proper task topic if ready to execute
+ */
 class KrmController {
 
   constructor(opts={}) {
     this.groupId = 'controller';
 
+    // create the kafka producer
     this.kafkaProducer = new kafka.Producer({
       'metadata.broker.list': config.kafka.host+':'+config.kafka.port
     });
 
+    // create the consumer, always start from last committed offset (earliest)
     this.kafkaConsumer = new kafka.Consumer({
       'group.id': this.groupId,
       'metadata.broker.list': config.kafka.host+':'+config.kafka.port,
-      'enable.auto.commit': true
+      'enable.auto.commit': false,
+      'auto.offset.reset' : 'earliest'
     })
 
+    // set the raw graph and the parsed dependency graph object
     this.graph = opts.graph || config.graph;
     this.dependencyGraph = new GraphParser(this.graph);
   }
 
   async connect() {
+    // connect both producer and consummer
     await this.kafkaProducer.connect();
     await this.kafkaConsumer.connect();
 
+    // ensure the subjectReady topic in kafka
     await kafka.utils.ensureTopic({
       topic : config.kafka.topics.subjectReady,
-      num_partitions: 1,
+      num_partitions: config.kafka.partitionsPerTopic,
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
+    // find all subjects in dependency graph.  For each subject generate
+    // a kafka friendly name.  This is used below to create all kafka topics
+    // for all tasks
     let allTopics = {};
     for( let subjectId in this.graph.graph ) {
       allTopics[kafka.utils.getTopicName(subjectId)] = true;
@@ -44,29 +61,30 @@ class KrmController {
       }
     }
 
+    // create a kafka topic for each task
     for( let topic of Object.keys(allTopics) ) {
       await kafka.utils.ensureTopic({
         topic,
-        num_partitions: 1,
+        num_partitions: config.kafka.partitionsPerTopic,
         replication_factor: 1
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
     }
 
-    let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(config.kafka.topics.subjectReady);
-    this.topics = await this.kafkaConsumer.committed(config.kafka.topics.subjectReady);
-    if( this.topics[0].offset === undefined ) {
-      logger.info('No offset set for topic', this.topics, 'setting offset value to low water mark: '+watermarks.lowOffset);
-      this.topics[0].offset = watermarks.lowOffset;
-    }
-    
-    logger.info(`Controller (group.id=${this.groupId}) kafka status=`, this.topics, 'watermarks=', watermarks);
-  
-    await this.kafkaConsumer.assign(this.topics);
+    // subscribe to the subjectReady topic and start listening 
+    await this.kafkaConsumer.subscribe([config.kafka.topics.subjectReady]);
     await this.listen();
 
+    // startup the delay window timer.  This delay window expires tasks that
+    // are waiting for subjects which took to long to arrive.
     // setInterval(() => this.checkDelayWindow(), 5000);
   }
 
+  /**
+   * @method checkDelayWindow
+   * @description distributed systems are chaos. Every task has a defined about of 
+   * time it will wait for it's dependency subjects to come in.  This method checks
+   * all pending tasks in mongo and checks to see if they delayReadyTime has expired.
+   */
   async checkDelayWindow() {
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
     let now = Date.now()
@@ -91,44 +109,25 @@ class KrmController {
     }
   }
 
-  sendSubjectReady(subject) {
-    let value = {
-      id : uuid.v4(),
-      time : new Date().toISOString(),
-      type : 'new.subject',
-      source : 'http://controller.'+config.server.url.hostname,
-      datacontenttype : 'application/json',
-      subject
-    }
-
-    logger.info('Sending subject ready to kafka: ', subject)
-
-    return this.kafkaProducer.produce({
-      topic : config.kafka.topics.subjectReady,
-      value,
-      key : this.groupId
-    });
-  }
-
   /**
    * @method listen
    * @description Start consuming messages from kafka, register onMessage as the handler.
    */
   async listen() {
     try {
-      await this.kafkaConsumer.consume(msg => this.onMessage(msg));
+      await this.kafkaConsumer.consume(msg => this._onMessage(msg));
     } catch(e) {
       logger.error('kafka consume error', e);
     }
   }
 
   /**
-   * @method onMessage
-   * @description handle a kafka message.
+   * @method _onMessage
+   * @description handle a kafka message.  Parsed kafka message, passed message to _onSubjectReady
    * 
    * @param {Object} msg kafka message
    */
-  async onMessage(msg) {
+  async _onMessage(msg) {
     this.run = false;
 
     try {
@@ -141,15 +140,30 @@ class KrmController {
     }
   }
 
+  /**
+   * @method _onSubjectReady
+   * @description Main method for checking a subject ready message against the dependency graph.
+   * Generates new task or appends to existing tasks.  Checks if task dependencies are met and
+   * sends message to proper task kafka queue
+   * 
+   * @param {String} subject subject uri
+   * @param {Object} fromMessage 
+   */
   async _onSubjectReady(subject, fromMessage) {
+    // get all tasks that are dependent on this subject from the dependency graph
     let dependentTasks = this.dependencyGraph.match(subject) || [];
+    // if no tasks returned, we are done here
     if( !dependentTasks.length ) return;
 
     logger.info('Handling subject with tasks: '+subject);
 
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
+    // loop all dependent tasks and check task dependency state
     for( let task of dependentTasks ) {
+
+      // this method either generates a new task message or creates a new task message
+      // if one does not exist.  Note this method will insert new task into mongo.
       let taskMsg = await this._generateTaskMsg(task);
 
       // the dependent tasks array is an array of ALL depended tasks.
@@ -159,53 +173,70 @@ class KrmController {
       // to generate task message above (this adds subject to required array)
       if( task.subject !== subject ) continue;
 
+      // ensure the subject is only added once to the data ready array
+      // update the lastUpdate timestamp
       if( !taskMsg.data.ready.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
         taskMsg.data.ready.push(subject);
+
+        // update mongo as well
+        await collection.updateOne({id: taskMsg.id}, {
+          $set : {
+            'data.lastUpdated' : taskMsg.data.lastUpdated,
+          },
+          $addToSet : {
+            'data.ready' : subject
+          }
+        });
       }
-      await collection.updateOne({id: taskMsg.id}, {
-        $set : {
-          'data.lastUpdated' : taskMsg.data.lastUpdated,
-        },
-        $addToSet : {
-          'data.ready' : subject
-        }
-      });
+
 
       // now check to see if the task can execute
       taskMsg = await collection.findOne({id: taskMsg.id});
-      if( !taskMsg ) return;
-      if( taskMsg.data.dependenciesReady ) return;
+      if( !taskMsg ) continue; // this task might have been handled by another worker
+      if( taskMsg.data.dependenciesReady ) continue; // this task has already been handled
 
+      // check to see if dependencies are ready given task message and task definition
       let ready = await this._ready(subject, task.definition.options, taskMsg);
+      if( !ready ) continue; // we are done here;
 
-      if( ready ) {
+      // update the delay ready time,  this is the time when the task expires
+      // UPDATE JM: I don't like this.  I think complex ready functions is the way to go.
+      // if( task.definition.options.delay && !taskMsg.data.readyTime ) {
+      //   await collection.updateOne({id: taskMsg.id}, {
+      //     $set : {
+      //       'data.delayReadyTime' :  Date.now()+task.definition.options.delay,
+      //     }
+      //   });
+      //   continue;
+      // }
 
-        if( task.definition.options.delay && !taskMsg.data.readyTime ) {
-          await collection.updateOne({id: taskMsg.id}, {
-            $set : {
-              'data.delayReadyTime' :  Date.now()+task.definition.options.delay,
-            }
-          });
-          return;
+      // set the dependenciesReady time
+      taskMsg.data.dependenciesReady = Date.now();
+      await collection.updateOne({id: taskMsg.id}, {
+        $set : {
+          'data.dependenciesReady' : taskMsg.data.dependenciesReady,
         }
+      });
 
-        taskMsg.data.dependenciesReady = Date.now();
-        await collection.updateOne({id: taskMsg.id}, {
-          $set : {
-            'data.dependenciesReady' : taskMsg.data.dependenciesReady,
-          }
-        });
-
-        await this.sendTask(taskMsg);
-      }
+      // fire off task message to kafka queue
+      await this.sendTask(taskMsg);
     }
   }
 
+  /**
+   * @method sendTask
+   * @description send a task message to proper task kafka queue.
+   * 
+   * @param {Object} taskMsg 
+   * @param {Object} controllerMessage Additional not for this controller class 
+   */
   async sendTask(taskMsg, controllerMessage) {
+    // make sure we delete the message from mongo
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
     let resp = await collection.deleteOne({id: taskMsg.id});
 
+    // if no message was deleted, this message was already handled
     if( resp.result.n != 1 ) {
       logger.warn('Controller did not find message during delete, ignorning', taskMsg, resp);
       return;
@@ -245,22 +276,32 @@ class KrmController {
     });
   }
 
+  /**
+   * @method _generateTaskMsg
+   * @description either fetch and return existing task message or create a new message
+   * 
+   * @param {Object} task dependency graph task object 
+   */
   async _generateTaskMsg(task) {
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
     let isMultiDependency = task.definition.options.dependentCount ? true : false;
 
+    // check to see if task already exits
     let existingTasks = await collection.find({subject: task.product}).toArray();
     // let existingTasks = this.state.getBySubject(task.product);
     
     if( existingTasks.length ) {
+      // this is bad, more than one task was generated
       if( isMultiDependency && existingTasks.length > 1 ) {
         logger.error('More that one mongo task object for multi-dependency-task. subject: '+task.subject, existingTasks.map(t => t.id))
       }
 
       let existingTask = null;
-      if( isMultiDependency ) {
+      if( isMultiDependency ) { // if badness, just graph first
         existingTask = existingTasks[0];
       } else {
+        // if multi tasks are acting on the same subject, loop through and find the task
+        // that has the provided subject as a dependency
         for( let et of existingTasks ) {
           if( et.data.required.includes(task.subject) ) {
             existingTask = et;
@@ -268,29 +309,41 @@ class KrmController {
           }
         }
 
+        // unable to find an existing task, create and return new task message
         if( !existingTask ) {
           return this.createTask(task);
         }
       }
 
+      // add new subject as dependency of the task
       if( existingTask.data.required.includes(task.subject) ) {
         existingTask.data.required.push(task.subject);
+        await collection.updateOne({id: existingTask.id}, {
+          $addToSet : {
+            'data.required' : task.subject
+          }
+        });
       }
-      await collection.updateOne({id: existingTask.id}, {
-        $addToSet : {
-          'data.required' : task.subject
-        }
-      });
 
+      // return our existing task
       return existingTask;
     }
 
+    // no tasks found for subject, create new task and return
     return this.createTask(task);
   }
 
+  /**
+   * @method createTask
+   * @description given a dependency graph task definition, create a new task
+   * message and store in mongo
+   * 
+   * @param {Object} task dependency graph task definition object
+   */
   async createTask(task) {
     let isMultiDependency = false;
 
+    // we have to assume any task definition with a ready function can have multiple dependencies
     if( task.definition.options.ready ) {
       isMultiDependency = true;
     } else if( task.definition.options.dependentCount || task.definition.options.dependentCount > 1 ) {
@@ -299,8 +352,13 @@ class KrmController {
 
     let collection = await mongo.getCollection(config.mongo.collections.krmState);
 
+    // complicated id setup here.
+    // any one-to-one (one single subject creates a task) we use a guid as uid
+    // otherwise we use product id.  The product id ensures we don't get multiple
+    // task messages for same subject in mongo
     let uid = uuid.v4();
     let id = isMultiDependency ? task.product : uid;
+    
     let taskMsg = {
       id : uid,
       time : new Date().toISOString(),
@@ -320,10 +378,10 @@ class KrmController {
     let resp;
     try {
       // we have to do this in two steps :(
-      // we don't know if the document exists, so we have to use this
-      // update/$setOnInsert command to only insert if it doesn't exist
-      // however, this throws an error if we try to add the 
-      // $addToSet command as well. so we do that as a second call, lame.
+      // we don't know if the document exists (distributed system and all...), 
+      // so we have to use this update/$setOnInsert command to only insert if 
+      // it doesn't exist however, this throws an error if we try to add the 
+      // $addToSet command as well (for required data). so we do that as a second call, lame.
       // We return the new doc in both cases for proper error logging if
       // things fail.
       resp = await collection.findOneAndUpdate(
@@ -360,11 +418,23 @@ class KrmController {
     return taskMsg;
   }
 
+  /**
+   * @method _ready
+   * @description check if a task message is ready to execute
+   * 
+   * @param {*} subject 
+   * @param {*} opts 
+   * @param {*} msg 
+   */
   _ready(subject, opts, msg) {
+    // if the dependency graph task definition has ready function, call 
+    // with the parsed subject uri, task message in it's current state
+    // and the application config
     if( opts.ready ) {
       return opts.ready(new URL(subject), msg, config);
     }
 
+    // otherwise just check the ready array is equal to the defined dependentCount (defaults to 1)
     let dependentCount = parseInt(opts.dependentCount || 1);
     return (dependentCount <= msg.data.ready.length);
   }

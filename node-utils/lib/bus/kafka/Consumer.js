@@ -32,8 +32,16 @@ class Consumer {
 
       let result = await this.consumeOne();
 
-      if( result ) await callback(result);
-      else await this._sleep();
+      if( result ) {
+        try {
+          await callback(result);
+        } catch(e) {
+          logger.error('KafkaConsumer failed to handle message', e, result);
+        }
+        await this.client.commit();
+      } else {
+        await this._sleep();
+      }
     }
   }
 
@@ -101,9 +109,13 @@ class Consumer {
    * 
    * @param {String|Object|Array} topic 
    */
-  assign(topic) {
-    topic = this._topicHelper(topic);
-    this.client.assign(topic);
+  // assign(topic) {
+  //   topic = this._topicHelper(topic);
+  //   this.client.assign(topic);
+  // }
+
+  subscribe(topics) {
+    return this.client.subscribe(topics);
   }
 
   /**
