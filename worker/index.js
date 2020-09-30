@@ -53,8 +53,7 @@ class Worker {
         await this.queue.ack(queueMsg);
       }
 
-      msgData.data = JSON.stringify(msgData.data);
-      msgData.content = Buffer.from(JSON.stringify(msgData));
+      // msgData.content = Buffer.from(JSON.stringify(msgData));
 
       if( !msgData.data.failures ) msgData.data.failures = [];
       msgData.data.failures.push({
@@ -68,6 +67,7 @@ class Worker {
 
       if( msgData.data.failures.length < config.worker.maxRetries ) {
         logger.warn('Worker retry message, failures less than max retries ', msgData.data.failures.length, config.worker.maxRetries, msgData);
+        msgData.data = JSON.stringify(msgData.data);
         await this.queue.send(msgData.type, msgData);
         await this.queue.ack(queueMsg);
         return;
