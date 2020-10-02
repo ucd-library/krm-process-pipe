@@ -27,24 +27,13 @@ class Router {
     });
     await this.kafkaConsumer.connect();
 
-    let allTopics = {};
-    for( let subjectId in config.graph.graph ) {
-      allTopics[kafka.utils.getTopicName(subjectId)] = true;
-      if( !config.graph.graph[subjectId].dependencies ) continue;
-      for( let dep of config.graph.graph[subjectId].dependencies ) {
-        allTopics[kafka.utils.getTopicName(dep.subject)] = true; 
-      }
-    }
+    await kafka.utils.ensureTopic({
+      topic:  config.kafka.topics.taskReady,
+      num_partitions: config.kafka.partitionsPerTopic,
+      replication_factor: 1
+    }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-    for( let topicName of Object.keys(allTopics) ) {
-      await kafka.utils.ensureTopic({
-        topic: topicName,
-        num_partitions: config.kafka.partitionsPerTopic,
-        replication_factor: 1
-      }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
-    }
-
-    await this.kafkaConsumer.subscribe(Object.keys(allTopics));
+    await this.kafkaConsumer.subscribe([config.kafka.topics.taskReady]);
     await this.listen();
   }
 

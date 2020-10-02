@@ -34,7 +34,9 @@ class Worker {
 
     try {
       msgData = JSON.parse(queueMsg.content.toString());
-      msgData.data = JSON.parse(msgData.data);
+      if( typeof msgData.data === 'string' ) {
+        msgData.data = JSON.parse(msgData.data);
+      }
       logger.info('Worker running msg', msgData.subject);
 
       // TODO, does this work?
@@ -67,7 +69,7 @@ class Worker {
 
       if( msgData.data.failures.length < config.worker.maxRetries ) {
         logger.warn('Worker retry message, failures less than max retries ', msgData.data.failures.length, config.worker.maxRetries, msgData);
-        msgData.data = JSON.stringify(msgData.data);
+        // msgData.data = JSON.stringify(msgData.data);
         await this.queue.send(msgData.type, msgData);
         await this.queue.ack(queueMsg);
         return;
@@ -116,7 +118,11 @@ class Worker {
   }
 
   sendResponse(msg, response={}) {
-    response.fromMessage = msg;
+    response.task = {
+      id : msg.id,
+      subject : msg.subject,
+      subjectId : (msg.data || {}).subjectId
+    } 
 
     let finishedMsg = {
       id : uuid.v4(),
@@ -125,7 +131,7 @@ class Worker {
       source : 'http://worker.'+config.server.url.hostname,
       datacontenttype : 'application/json',
       subject : msg.subject,
-      data : JSON.stringify(response)
+      data : response
     }
 
     logger.info('Worker sending finished message: '+msg.subject, response.state);

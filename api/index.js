@@ -35,7 +35,7 @@ server.on('upgrade', (req, socket, head) => {
 
 // register services
 for( let service of config.api.services ) {
-  logger.info(`Creating api service route /_/${service.route} to http://${service.hostname}`);
+  logger.info(`Creating api service route '/_/${service.route}' to 'http://${service.hostname}'`);
   
   // required to handle websocket upgrade requests
   wsServiceMap[service.hostname] = new RegExp(`^/_/${service.route}(/.*|$)`);

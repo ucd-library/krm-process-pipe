@@ -49,26 +49,14 @@ class KrmController {
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-    // find all subjects in dependency graph.  For each subject generate
-    // a kafka friendly name.  This is used below to create all kafka topics
-    // for all tasks
-    let allTopics = {};
-    for( let subjectId in this.graph.graph ) {
-      allTopics[kafka.utils.getTopicName(subjectId)] = true;
-      if( !this.graph.graph[subjectId].dependencies ) continue;
-      for( let dep of this.graph.graph[subjectId].dependencies ) {
-        allTopics[kafka.utils.getTopicName(dep.subject.href)] = true; 
-      }
-    }
 
-    // create a kafka topic for each task
-    for( let topic of Object.keys(allTopics) ) {
-      await kafka.utils.ensureTopic({
-        topic,
-        num_partitions: config.kafka.partitionsPerTopic,
-        replication_factor: 1
-      }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
-    }
+    // create a kafka topic for ready tasks
+    await kafka.utils.ensureTopic({
+      topic:  config.kafka.topics.taskReady,
+      num_partitions: config.kafka.partitionsPerTopic,
+      replication_factor: 1
+    }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
+
 
     // subscribe to the subjectReady topic and start listening 
     await this.kafkaConsumer.subscribe([config.kafka.topics.subjectReady]);
@@ -265,12 +253,13 @@ class KrmController {
     }
 
     // stringify task data
-    let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
-    taskMsg.data = JSON.stringify(taskMsg.data);
+    // let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
+    // This makes it a pain for tools like ksqlDB...
+    // taskMsg.data = JSON.stringify(taskMsg.data);
 
-    logger.info('Sending task message to: '+topicName, 'subject='+taskMsg.subject);
+    logger.info('Sending task message to '+config.kafka.topics.taskReady+' topic for subject: '+taskMsg.subject);
     this.kafkaProducer.produce({
-      topic : topicName,
+      topic : config.kafka.topics.taskReady,
       value: taskMsg,
       key : this.groupId
     });

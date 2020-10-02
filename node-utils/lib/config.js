@@ -55,7 +55,8 @@ module.exports = {
     port : env.KAFKA_PORT || 9092,
     partitionsPerTopic : 10,
     topics : {
-      subjectReady : 'subject-ready'
+      subjectReady : 'subject-ready',
+      taskReady : 'task-ready'
     }
   },
 
