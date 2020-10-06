@@ -75,7 +75,7 @@ class Worker {
         return;
       }
 
-      logger.error('Failed to run message '+config.worker.maxRetries+' times', msgData);
+      logger.error('Failed to run message '+config.worker.maxRetries+' times', JSON.stringify(msgData, '  ', '  '));
       this.sendResponse(msgData, {
         state: 'failed',
         failures: msgData.data.failures

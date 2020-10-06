@@ -1,5 +1,6 @@
 const express = require('express');
 const serveIndex = require('serve-index');
+const compression = require('compression');
 const {logger, config} = require('@ucd-lib/krm-node-utils');
 const httpProxy = require('http-proxy');
 
@@ -18,6 +19,7 @@ proxy.on('error', err => logger.warn('api proxy error', err));
 
 const wsServiceMap = {};
 
+app.use(compression());
 app.use(cors);
 
 // handle websocket upgrade requests

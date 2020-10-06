@@ -14,7 +14,10 @@ class Consumer {
     this.client
       .on('ready', () => logger.info('Kafka consumer ready'))
       .on('disconnected', e => logger.warn('Kafka consumer disconnected', e))
-      .on('event.error', e => logger.error('Kafka consumer event.error', e));
+      .on('event.error', e => {
+        logger.error('Kafka consumer event.error', e);
+        setTimeout(() => process.exit(-1), 50);
+      });
   }
 
   /**
