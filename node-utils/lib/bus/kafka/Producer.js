@@ -13,7 +13,10 @@ class Producer {
       .on('disconnected', e => logger.warn('Kafka producer disconnected', e))
       .on('event.error', e => {
         logger.error('Kafka producer event.error', e);
-        setTimeout(() => process.exit(-1), 50);
+        setTimeout(() => {
+          logger.error('Killing process due to error in kafka connection');
+          process.exit(-1);
+        }, 50);
       });
   }
 

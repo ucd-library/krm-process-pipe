@@ -16,7 +16,10 @@ class Consumer {
       .on('disconnected', e => logger.warn('Kafka consumer disconnected', e))
       .on('event.error', e => {
         logger.error('Kafka consumer event.error', e);
-        setTimeout(() => process.exit(-1), 50);
+        setTimeout(() => {
+          logger.error('Killing process due to error in kafka connection');
+          process.exit(-1);
+        }, 50);
       });
   }
 

@@ -57,8 +57,10 @@ class GraphParser {
    * 
    * @param {String} subjectHref subject uri
    * @param {Array} dependents result array of dependent tasks.  recursively passed
+   * @param {Boolean} entireGraph by default we are only going to find direct child tasks.  Set
+   * this flag if you wish to see ALL possible tasks spawn from a subject
    */
-  match(subjectHref, dependents=[]) {
+  match(subjectHref, dependents=[], entireGraph=false) {
     // for every task subject uri (key) defined in graph
     for( let key in this.graph ) {
       // loop through the tasks dependencies 
@@ -106,8 +108,10 @@ class GraphParser {
         };
         dependents.push(item);
 
-        // no recursively loop through dependent tasks, so which tasks they generate 
-        this.match(product, dependents);
+        if( entireGraph ) {
+          // no recursively loop through dependent tasks, so which tasks they generate 
+          this.match(product, dependents);
+        }
       }
     }
 

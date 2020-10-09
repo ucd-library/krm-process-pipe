@@ -57,14 +57,21 @@ class KrmController {
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
+    await mongo.ensureIndexes();
 
     // subscribe to the subjectReady topic and start listening 
     await this.kafkaConsumer.subscribe([config.kafka.topics.subjectReady]);
-    await this.listen();
+    this.listen();
 
     // startup the delay window timer.  This delay window expires tasks that
     // are waiting for subjects which took to long to arrive.
-    // setInterval(() => this.checkDelayWindow(), 5000);
+    setInterval(async () => {
+      try {
+        await this.checkDelayWindow();
+      } catch(e) {
+        logger.error('Check delay error', e);
+      }
+    }, 5000);
   }
 
   /**
@@ -86,7 +93,7 @@ class KrmController {
         continue;
       }
 
-      let def = this.dependencyGraph.graph[taskMsg.data.subjectId];
+      let def = this.dependencyGraph.graph[document.data.subjectId];
       let timeout = def.options.timeout || (5 * 60 * 1000);
       if( document.data.lastUpdated < now - timeout ) {
         await this.sendTask(document, {
@@ -350,7 +357,7 @@ class KrmController {
     
     let taskMsg = {
       id : uid,
-      time : new Date().toISOString(),
+      time : new Date(),
       type : task.definition.worker || config.task.defaultWorker,
       source : 'http://controller.'+config.server.url.hostname,
       datacontenttype : 'application/json',

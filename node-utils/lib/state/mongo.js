@@ -54,6 +54,12 @@ class Database {
     return this.db.collection(collection);
   }
 
+  async ensureIndexes() {
+    let collection = await this.getCollection(config.mongo.collections.krmState);
+    collection.createIndex({subject: 1});
+    collection.createIndex({time: 1});
+  }
+
 }
 
 module.exports = new Database();
