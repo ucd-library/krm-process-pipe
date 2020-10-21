@@ -121,8 +121,8 @@ class Worker {
     response.task = {
       id : msg.id,
       subject : msg.subject,
-      subjectId : (msg.data || {}).subjectId
-    } 
+      taskDefId : (msg.data || {}).taskDefId
+    }
 
     let finishedMsg = {
       id : uuid.v4(),

@@ -14,7 +14,7 @@ CREATE STREAM subject_stream (
       task STRUCT<
         id VARCHAR,
         subject VARCHAR,
-        subjectId VARCHAR
+        taskDefId VARCHAR
       >,
       failures ARRAY<STRUCT<
         message VARCHAR,
@@ -41,7 +41,7 @@ CREATE STREAM task_stream (
       name VARCHAR,
       required ARRAY<VARCHAR>,
       ready ARRAY<VARCHAR>,
-      subjectId VARCHAR,
+      taskDefId VARCHAR,
       args MAP<VARCHAR, VARCHAR>,
       controllerMessage STRUCT<
         reason VARCHAR,
@@ -65,7 +65,7 @@ CREATE TABLE task_table (
       name VARCHAR,
       required ARRAY<VARCHAR>,
       ready ARRAY<VARCHAR>,
-      subjectId VARCHAR,
+      taskDefId VARCHAR,
       args MAP<VARCHAR, VARCHAR>,
       controllerMessage STRUCT<
         reason VARCHAR,
@@ -78,6 +78,12 @@ CREATE TABLE task_table (
     kafka_topic='task-ready', 
     value_format='json'
   );
+
+-- materializd view version
+-- CREATE TABLE task_view AS
+--   SELECT ID, TIME, TYPE, SOURCE, SUBJECT, DATA, count(*) as count
+--   FROM task_stream
+--   GROUP BY id, TIME, TYPE, SOURCE, SUBJECT, DATA EMIT CHANGES;
 
 -- Find duplicates
 create table subject_counts as select subject, count(*) as count from task_stream group by subject emit changes;

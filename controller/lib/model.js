@@ -93,7 +93,9 @@ class KrmController {
         continue;
       }
 
-      let def = this.dependencyGraph.graph[document.data.subjectId];
+      // TODO: recheck ready here as well
+
+      let def = this.dependencyGraph.graph[document.data.taskDefId];
       let timeout = def.options.timeout || (5 * 60 * 1000);
       if( document.data.lastUpdated < now - timeout ) {
         await this.sendTask(document, {
@@ -129,7 +131,7 @@ class KrmController {
       logger.debug(`Handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
       msg = JSON.parse(msg.value.toString('utf-8'));
       
-      await this._onSubjectReady(msg.subject, msg.fromMessage);
+      await this._onSubjectReady(msg.subject, (msg.data || {}).task);
     } catch(e) {
       logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg, e);
     }
@@ -142,9 +144,9 @@ class KrmController {
    * sends message to proper task kafka queue
    * 
    * @param {String} subject subject uri
-   * @param {Object} fromMessage 
+   * @param {Object} task task info for subject
    */
-  async _onSubjectReady(subject, fromMessage) {
+  async _onSubjectReady(subject, task={}) {
     // get all tasks that are dependent on this subject from the dependency graph
     let dependentTasks = this.dependencyGraph.match(subject) || [];
     // if no tasks returned, we are done here
@@ -173,6 +175,14 @@ class KrmController {
       if( !taskMsg.data.ready.includes(subject) ) {
         taskMsg.data.lastUpdated = Date.now();
         taskMsg.data.ready.push(subject);
+        let addToSet = {
+          'data.ready' : subject
+        };
+
+        if( task.id ) {
+          taskMsg.data.parentTaskIds.push(task.id);
+          addToSet['data.parentTaskIds'] = task.id;
+        }
 
         // update mongo as well
         await collection.updateOne({id: taskMsg.id}, {
@@ -238,7 +248,7 @@ class KrmController {
     }
 
     // handle functional commands
-    taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.subjectId].command;
+    taskMsg.data.command = this.dependencyGraph.graph[taskMsg.data.taskDefId].command;
     if( typeof taskMsg.data.command === 'function' ) {
       taskMsg.data.command = taskMsg.data.command(
         new URL(taskMsg.subject),
@@ -260,7 +270,7 @@ class KrmController {
     }
 
     // stringify task data
-    // let topicName = kafka.utils.getTopicName(taskMsg.data.subjectId);
+    // let topicName = kafka.utils.getTopicName(taskMsg.data.taskDefId);
     // This makes it a pain for tools like ksqlDB...
     // taskMsg.data = JSON.stringify(taskMsg.data);
 
@@ -353,8 +363,8 @@ class KrmController {
     // otherwise we use product id.  The product id ensures we don't get multiple
     // task messages for same subject in mongo
     let uid = uuid.v4();
-    let id = isMultiDependency ? task.product : uid;
-    
+    // let id = isMultiDependency ? task.product : uid;
+
     let taskMsg = {
       id : uid,
       time : new Date(),
@@ -366,7 +376,8 @@ class KrmController {
         name : task.definition.name,
         required : [],
         ready : [],
-        subjectId : task.definition.id,
+        parentTaskIds : [],
+        taskDefId : task.definition.id,
         args : task.args
       }
     }
@@ -381,7 +392,7 @@ class KrmController {
       // We return the new doc in both cases for proper error logging if
       // things fail.
       resp = await collection.findOneAndUpdate(
-        { _id : id },
+        { _id : uid },
         { $setOnInsert: taskMsg},
         { 
           returnOriginal: false,
@@ -390,7 +401,7 @@ class KrmController {
       );
 
       resp = await collection.findOneAndUpdate(
-        { _id : id },
+        { _id : uid },
         { $addToSet : {'data.required': task.subject} },
         { returnOriginal: false }
       );
