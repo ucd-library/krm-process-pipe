@@ -363,7 +363,7 @@ class KrmController {
     // otherwise we use product id.  The product id ensures we don't get multiple
     // task messages for same subject in mongo
     let uid = uuid.v4();
-    // let id = isMultiDependency ? task.product : uid;
+    let id = isMultiDependency ? task.product : uid;
 
     let taskMsg = {
       id : uid,
@@ -392,7 +392,7 @@ class KrmController {
       // We return the new doc in both cases for proper error logging if
       // things fail.
       resp = await collection.findOneAndUpdate(
-        { _id : uid },
+        { _id : id },
         { $setOnInsert: taskMsg},
         { 
           returnOriginal: false,
@@ -401,7 +401,7 @@ class KrmController {
       );
 
       resp = await collection.findOneAndUpdate(
-        { _id : uid },
+        { _id : id  },
         { $addToSet : {'data.required': task.subject} },
         { returnOriginal: false }
       );
