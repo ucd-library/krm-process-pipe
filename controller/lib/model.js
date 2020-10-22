@@ -144,9 +144,9 @@ class KrmController {
    * sends message to proper task kafka queue
    * 
    * @param {String} subject subject uri
-   * @param {Object} task task info for subject
+   * @param {Object} parentTask task info for subject
    */
-  async _onSubjectReady(subject, task={}) {
+  async _onSubjectReady(subject, parentTask={}) {
     // get all tasks that are dependent on this subject from the dependency graph
     let dependentTasks = this.dependencyGraph.match(subject) || [];
     // if no tasks returned, we are done here
@@ -179,9 +179,9 @@ class KrmController {
           'data.ready' : subject
         };
 
-        if( task.id ) {
-          taskMsg.data.parentTaskIds.push(task.id);
-          addToSet['data.parentTaskIds'] = task.id;
+        if( parentTask.id ) {
+          taskMsg.data.parentTaskIds.push(parentTask.id);
+          addToSet['data.parentTaskIds'] = parentTask.id;
         }
 
         // update mongo as well
@@ -322,14 +322,14 @@ class KrmController {
       }
 
       // add new subject as dependency of the task
-      if( existingTask.data.required.includes(task.subject) ) {
+      if( !existingTask.data.required.includes(task.subject) ) {
         existingTask.data.required.push(task.subject);
-        await collection.updateOne({id: existingTask.id}, {
-          $addToSet : {
-            'data.required' : task.subject
-          }
-        });
       }
+      await collection.updateOne({id: existingTask.id}, {
+        $addToSet : {
+          'data.required' : task.subject
+        }
+      });
 
       // return our existing task
       return existingTask;
@@ -400,11 +400,11 @@ class KrmController {
         }
       );
 
-      resp = await collection.findOneAndUpdate(
-        { _id : id  },
-        { $addToSet : {'data.required': task.subject} },
-        { returnOriginal: false }
-      );
+      // resp = await collection.findOneAndUpdate(
+      //   { _id : id  },
+      //   { $addToSet : {'data.required': task.subject} },
+      //   { returnOriginal: false }
+      // );
 
       if( resp.value ) {
         return resp.value;
