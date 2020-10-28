@@ -1,6 +1,7 @@
 const {MongoClient, ObjectId} = require('mongodb');
 const logger = require('../logger');
 const config = require('../config');
+const waitUtil = require('../wait-util');
 
 class Database {
 
@@ -24,7 +25,9 @@ class Database {
 
     this.connected = false;
 
-    this.connecting = new Promise((resolve, reject) => {
+    this.connecting = new Promise(async (resolve, reject) => {
+      await waitUtil(config.mongo.host, config.mongo.port);
+
       MongoClient.connect(url, (err, client) => {  
         if( err ) {
           logger.error('Failed to connect to Mongo', url, err);
