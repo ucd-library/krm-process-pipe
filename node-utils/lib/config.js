@@ -12,7 +12,7 @@ if( fs.existsSync(process.env.GRAPH_FILE || '/etc/krm/graph') ) {
 }
 
 module.exports = {
-  env : process.KRM_ENV || 'not-set',
+  env : process.env.KRM_ENV || 'not-set',
 
   graph,
 
