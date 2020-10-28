@@ -352,7 +352,7 @@ class KrmController {
     // we have to assume any task definition with a ready function can have multiple dependencies
     if( task.definition.options.ready ) {
       isMultiDependency = true;
-    } else if( task.definition.options.dependentCount || task.definition.options.dependentCount > 1 ) {
+    } else if( task.definition.options.dependentCount && task.definition.options.dependentCount > 1 ) {
       isMultiDependency = true;
     }
 
