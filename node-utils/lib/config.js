@@ -12,6 +12,8 @@ if( fs.existsSync(process.env.GRAPH_FILE || '/etc/krm/graph') ) {
 }
 
 module.exports = {
+  env : process.KRM_ENV || 'not-set',
+
   graph,
 
   cron : {
@@ -61,6 +63,7 @@ module.exports = {
   },
 
   google : {
+    projectId : env.GOOGLE_PROJECT_ID || 'digital-ucdavis-edu',
     serviceAccountFile : env.GOOGLE_SERVICE_ACCOUNT || '/etc/google/service-account.json'
   },
 
