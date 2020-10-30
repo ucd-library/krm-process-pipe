@@ -1,6 +1,6 @@
 const GraphParser = require('./graph-parser');
 const uuid = require('uuid');
-const {config, logger, bus, state} = require('@ucd-lib/krm-node-utils');
+const {config, Monitor, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
 const mongo = state.mongo;
@@ -17,6 +17,7 @@ const mongo = state.mongo;
 class KrmController {
 
   constructor(opts={}) {
+    this.id = uuid.v4();
     this.groupId = 'controller';
 
     // create the kafka producer
@@ -35,6 +36,69 @@ class KrmController {
     // set the raw graph and the parsed dependency graph object
     this.graph = opts.graph || config.graph;
     this.dependencyGraph = new GraphParser(this.graph);
+
+    // for cloud monitoring 
+    this.monitor = new Monitor('krm-controller-'+this.id);
+    this.metrics = {
+      tasks : {
+        description: 'KRM tasks ready per second',
+        displayName: 'Tasks Ready',
+        type: 'custom.googleapis.com/krm/tasks_ready',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: '1',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'taskId',
+            valueType: 'STRING',
+            description: 'Task URI ID',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      },
+      subjects : {
+        description: 'KRM subjects ready per second',
+        displayName: 'Subjects Ready',
+        type: 'custom.googleapis.com/krm/subjects_ready',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: '1',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'source',
+            valueType: 'STRING',
+            description: 'Source of message',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      }
+    }
+
+    let metricOpts = {beforeWriteCallback: this.beforeMetricWrite}
+    this.monitor.registerMetric(this.metrics.tasks, metricOpts);
+    this.monitor.registerMetric(this.metrics.subjects, metricOpts);
+  }
+
+  beforeMetricWrite(item, info) {
+    return item.value / (info.interval/1000);
   }
 
   async connect() {
@@ -130,7 +194,8 @@ class KrmController {
     try {
       logger.debug(`Handling kafka ${config.kafka.topics.subjectReady} message: ${kafka.utils.getMsgId(msg)}`);
       msg = JSON.parse(msg.value.toString('utf-8'));
-      
+      this.monitor.incrementMetric(this.metrics.subjects.type, 'source', {source: msg.source});
+
       await this._onSubjectReady(msg.subject, (msg.data || {}).task);
     } catch(e) {
       logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg, e);
@@ -280,6 +345,8 @@ class KrmController {
       value: taskMsg,
       key : this.groupId
     });
+
+    this.monitor.incrementMetric(this.metrics.tasks.type, 'taskId', {taskId: taskMsg.data.taskDefId});
   }
 
   /**
