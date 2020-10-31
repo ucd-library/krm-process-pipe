@@ -92,9 +92,28 @@ class KrmController {
       }
     }
 
-    let metricOpts = {beforeWriteCallback: this.beforeMetricWrite}
-    this.monitor.registerMetric(this.metrics.tasks, metricOpts);
-    this.monitor.registerMetric(this.metrics.subjects, metricOpts);
+    this.monitor.registerMetric(
+      this.metrics.tasks,
+      {
+        beforeWriteCallback: this.beforeMetricWrite,
+        onReset : () => {
+          let stats = {};
+          for( let taskId in this.graph.graph ) {
+            stats[taskId] = {
+              taskId,
+              value : 0,
+              time : new Date()
+            }
+          }
+          return stats
+        }
+      }
+    );
+    this.monitor.registerMetric(
+      this.metrics.subjects, 
+      {beforeWriteCallback: this.beforeMetricWrite}
+    );
+    // this.monitor.ensureMetrics();
   }
 
   beforeMetricWrite(item, info) {

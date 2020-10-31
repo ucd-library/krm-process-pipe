@@ -34,6 +34,12 @@ class Monitoring {
     this.data[metric.metricDescriptor.type] = {};
   }
 
+  async ensureMetrics() {
+    for( let key in this.metrics ) {
+      await this.ensureMetric(this.metrics[key].metric);
+    }
+  }
+
   ensureMetric(metric) {
     return this.client.createMetricDescriptor(metric);
   }
@@ -80,8 +86,10 @@ class Monitoring {
   async write() {
     let data = this.data;
 
-    let tmp = {}
-    Object.keys(data).forEach(type => tmp[type] = {});
+    let tmp = {};
+    Object.keys(data).forEach(type => {
+      tmp[type] = this.metrics[type].opts.onReset ? this.metrics[type].opts.onReset() : {};
+    });
     this.data = tmp;
 
     for( let type in data ) {
