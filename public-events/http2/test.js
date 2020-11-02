@@ -12,6 +12,7 @@ let currentData = '';
 (async function() {
   let client = http2.connect(
     'http://localhost:3001'
+    // 'https://data.casita.library.ucdavis.edu'
   );
 
   let request = client.request({

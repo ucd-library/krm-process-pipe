@@ -25,9 +25,27 @@ server.on('stream', (stream, headers, flags) => {
     return;
   }
 
+  let subject;
   let path = headers[HTTP2_HEADER_PATH];
-  path = decodeURIComponent(path.replace('/_/h2/', ''))
+  let orgPath = path;
   const id = uuid.v4();
+
+  try {
+    path = decodeURIComponent(path.replace('/_/h2/', ''));
+    subject = utils.subjectParser(path);
+  } catch(e) {
+    stream.respond({
+      [HTTP2_HEADER_STATUS]: 500,
+      [HTTP2_HEADER_CONTENT_TYPE]: 'application/json'
+    });
+    stream.end(JSON.stringify({
+      error: true,
+      path : orgPath,
+      subject : path,
+      message : e.message
+    }));
+    return;
+  }
 
   stream.respond({
     [HTTP2_HEADER_STATUS]: 200,
@@ -36,8 +54,7 @@ server.on('stream', (stream, headers, flags) => {
 
 
   registrations[id] = {
-    path, stream,
-    subject : utils.subjectParser(path)
+    path, stream, subject
   };
   write(stream, {connected: true, subject: path});
 
