@@ -38,12 +38,13 @@ server.on('stream', (stream, headers, flags) => {
       [HTTP2_HEADER_STATUS]: 500,
       [HTTP2_HEADER_CONTENT_TYPE]: 'application/json'
     });
-    stream.end(JSON.stringify({
+    write(stream, {
       error: true,
       path : orgPath,
       subject : path,
       message : e.message
-    }));
+    });
+    stream.end();
     return;
   }
 
