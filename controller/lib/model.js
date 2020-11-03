@@ -44,7 +44,7 @@ class KrmController {
         description: 'KRM tasks ready per second',
         displayName: 'Tasks Ready',
         type: 'custom.googleapis.com/krm/tasks_ready',
-        metricKind: 'GAUGE',
+        metricKind: 'CUMULATIVE',
         valueType: 'INT64',
         unit: '1',
         labels: [
@@ -69,7 +69,7 @@ class KrmController {
         description: 'KRM subjects ready per second',
         displayName: 'Subjects Ready',
         type: 'custom.googleapis.com/krm/subjects_ready',
-        metricKind: 'GAUGE',
+        metricKind: 'CUMULATIVE',
         valueType: 'INT64',
         unit: '1',
         labels: [
@@ -95,7 +95,7 @@ class KrmController {
     this.monitor.registerMetric(
       this.metrics.tasks,
       {
-        beforeWriteCallback: this.beforeMetricWrite,
+        // beforeWriteCallback: this.beforeMetricWrite,
         onReset : () => {
           let stats = {};
           for( let taskId in this.graph.graph ) {
@@ -110,15 +110,15 @@ class KrmController {
       }
     );
     this.monitor.registerMetric(
-      this.metrics.subjects, 
-      {beforeWriteCallback: this.beforeMetricWrite}
+      this.metrics.subjects
+      // {beforeWriteCallback: this.beforeMetricWrite}
     );
-    // this.monitor.ensureMetrics();
+    this.monitor.ensureMetrics();
   }
 
-  beforeMetricWrite(item, info) {
-    return item.value / (info.interval/1000);
-  }
+  // beforeMetricWrite(item, info) {
+  //   return item.value / (info.interval/1000);
+  // }
 
   async connect() {
     // connect both producer and consummer
@@ -269,44 +269,50 @@ class KrmController {
         }
 
         // update mongo as well
-        await collection.updateOne({id: taskMsg.id}, {
-          $set : {
-            'data.lastUpdated' : taskMsg.data.lastUpdated,
-          },
-          $addToSet : {
-            'data.ready' : subject
-          }
-        });
+        if( taskMsg.data.isMultiDependency ) {
+          await collection.updateOne({id: taskMsg.id}, {
+            $set : {
+              'data.lastUpdated' : taskMsg.data.lastUpdated,
+            },
+            $addToSet : {
+              'data.ready' : subject
+            }
+          });
+        }
       }
 
 
-      // now check to see if the task can execute
-      taskMsg = await collection.findOne({id: taskMsg.id});
-      if( !taskMsg ) continue; // this task might have been handled by another worker
-      if( taskMsg.data.dependenciesReady ) continue; // this task has already been handled
+      // now check to see if the task can execute multi-dependency task
+      if( taskMsg.data.isMultiDependency ) {
+        taskMsg = await collection.findOne({id: taskMsg.id});
+        if( !taskMsg ) continue; // this task might have been handled by another worker
+        if( taskMsg.data.dependenciesReady ) continue; // this task has already been handled
 
-      // check to see if dependencies are ready given task message and task definition
-      let ready = await this._ready(subject, task.definition.options, taskMsg);
-      if( !ready ) continue; // we are done here;
+        // check to see if dependencies are ready given task message and task definition
+        let ready = await this._ready(subject, task.definition.options, taskMsg);
+        if( !ready ) continue; // we are done here;
 
-      // update the delay ready time,  this is the time when the task expires
-      // UPDATE JM: I don't like this.  I think complex ready functions is the way to go.
-      // if( task.definition.options.delay && !taskMsg.data.readyTime ) {
-      //   await collection.updateOne({id: taskMsg.id}, {
-      //     $set : {
-      //       'data.delayReadyTime' :  Date.now()+task.definition.options.delay,
-      //     }
-      //   });
-      //   continue;
-      // }
+        // update the delay ready time,  this is the time when the task expires
+        // UPDATE JM: I don't like this.  I think complex ready functions is the way to go.
+        // if( task.definition.options.delay && !taskMsg.data.readyTime ) {
+        //   await collection.updateOne({id: taskMsg.id}, {
+        //     $set : {
+        //       'data.delayReadyTime' :  Date.now()+task.definition.options.delay,
+        //     }
+        //   });
+        //   continue;
+        // }
+      }
 
       // set the dependenciesReady time
       taskMsg.data.dependenciesReady = Date.now();
-      await collection.updateOne({id: taskMsg.id}, {
-        $set : {
-          'data.dependenciesReady' : taskMsg.data.dependenciesReady,
-        }
-      });
+      if( taskMsg.data.isMultiDependency ) {
+        await collection.updateOne({id: taskMsg.id}, {
+          $set : {
+            'data.dependenciesReady' : taskMsg.data.dependenciesReady,
+          }
+        });
+      }
 
       // fire off task message to kafka queue
       await this.sendTask(taskMsg);
@@ -321,14 +327,16 @@ class KrmController {
    * @param {Object} controllerMessage Additional not for this controller class 
    */
   async sendTask(taskMsg, controllerMessage) {
-    // make sure we delete the message from mongo
-    let collection = await mongo.getCollection(config.mongo.collections.krmState);
-    let resp = await collection.deleteOne({id: taskMsg.id});
+    if( taskMsg.data.isMultiDependency ) {
+      // make sure we delete the message from mongo
+      let collection = await mongo.getCollection(config.mongo.collections.krmState);
+      let resp = await collection.deleteOne({id: taskMsg.id});
 
-    // if no message was deleted, this message was already handled
-    if( resp.result.n != 1 ) {
-      logger.warn('Controller did not find message during delete, ignorning', taskMsg, resp);
-      return;
+      // if no message was deleted, this message was already handled
+      if( resp.result.n != 1 ) {
+        logger.warn('Controller did not find message during delete, ignorning', taskMsg, resp);
+        return;
+      }
     }
 
     // handle functional commands
@@ -459,6 +467,7 @@ class KrmController {
       datacontenttype : 'application/json',
       subject : task.product,
       data : {
+        isMultiDependency,
         name : task.definition.name,
         required : [],
         ready : [],
@@ -466,6 +475,10 @@ class KrmController {
         taskDefId : task.definition.id,
         args : task.args
       }
+    }
+
+    if( !isMultiDependency ) {
+      return taskMsg;
     }
 
     let resp;

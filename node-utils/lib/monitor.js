@@ -19,6 +19,7 @@ class Monitoring {
     this.data = {};
 
     this.interval = 1000 * 30;
+    this.startTime = new Date();
     setInterval(() => this.write(), this.interval);
   }
 
@@ -72,7 +73,6 @@ class Monitoring {
     if( !args[key] ) throw new Error('Metric args does not contain key: '+key);
     if( !this.data[type] ) throw new Error('Unknown metric type: '+type);
     
-    if( !args.time ) args.time = new Date();
     args.value = value;
     
     this.data[type][args[key]] = args;
@@ -92,6 +92,10 @@ class Monitoring {
     });
     this.data = tmp;
 
+
+    let startTime = this.startTime;
+    this.startTime = new Date();
+
     for( let type in data ) {
       let values = data[type];
       for( let key in values ) {
@@ -103,9 +107,12 @@ class Monitoring {
 
         let dataPoint = {
           interval: {
-            endTime: {
-              seconds: item.time.getTime() / 1000,
+            startTime : {
+              seconds: startTime.getTime() / 1000
             },
+            endTime: {
+              seconds: new Date().getTime() / 1000
+            }
           },
           value: {
             int64Value: item.value+'',

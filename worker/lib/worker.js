@@ -1,4 +1,4 @@
-const {bus, queue, config, logger} = require('@ucd-lib/krm-node-utils');
+const {bus, queue, config, logger, Monitor} = require('@ucd-lib/krm-node-utils');
 const exec = require('./exec');
 const fs = require('fs-extra');
 const path = require('path');
@@ -13,10 +13,44 @@ class Worker {
       throw new Error('No queue set for worker');
     }
 
+    this.id = uuid.v4();
+
     this.queue = new RabbitMQ();
     this.kafkaProducer = new kafka.Producer({
       'metadata.broker.list': config.kafka.host+':'+config.kafka.port
     });
+
+    // for cloud monitoring 
+    this.monitor = new Monitor('krm-worker-'+this.id);
+    this.metrics = {
+      error : {
+        description: 'KRM worker task errors',
+        displayName: 'Worker Task Errors',
+        type: 'custom.googleapis.com/krm/worker_task_errors',
+        metricKind: 'CUMULATIVE',
+        valueType: 'INT64',
+        unit: '1',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'taskId',
+            valueType: 'STRING',
+            description: 'Task URI ID',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      },
+    }
+    this.monitor.registerMetric(this.metrics.error);
+    this.monitor.ensureMetrics();
   }
 
   async connect() {
@@ -45,6 +79,8 @@ class Worker {
       await this.queue.ack(queueMsg);
     } catch(e) {
       logger.warn('Worker failed to run msg', e, queueMsg);
+
+      this.monitor.incrementMetric(this.metrics.subjects.error, 'taskId', {taskId: (msgData.data || {}).taskDefId});
 
       if( !msgData ) {
         logger.error('Worker got a really bad message', queueMsg.content.toString());
