@@ -43,7 +43,7 @@ class KrmController {
       tasks : {
         description: 'KRM tasks ready per second',
         displayName: 'Tasks Ready',
-        type: 'custom.googleapis.com/krm/tasks_ready',
+        type: 'custom.googleapis.com/krm/v2/tasks_ready',
         metricKind: 'CUMULATIVE',
         valueType: 'INT64',
         unit: '1',
@@ -68,7 +68,7 @@ class KrmController {
       subjects : {
         description: 'KRM subjects ready per second',
         displayName: 'Subjects Ready',
-        type: 'custom.googleapis.com/krm/subjects_ready',
+        type: 'custom.googleapis.com/krm/v2/subjects_ready',
         metricKind: 'CUMULATIVE',
         valueType: 'INT64',
         unit: '1',

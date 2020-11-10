@@ -3,6 +3,15 @@ const logger = require('./logger');
 const monitoring = require('@google-cloud/monitoring');
 
 // https://cloud.google.com/monitoring/custom-metrics/creating-metrics
+
+/** 
+ * There is no cli for metric description removal (dump).  Here is a quick script
+ * 
+ * const monitoring = require('@google-cloud/monitoring');
+ * let client = new monitoring.MetricServiceClient({keyFilename: '/etc/google/service-account.json'})
+ * client.deleteMetricDescriptor({name:'projects/digital-ucdavis-edu/metricDescriptors/custom.googleapis.com/krm/tasks_ready'}).then(e => console.log(e))
+ */
+
 class Monitoring {
 
   constructor(serviceId) {
