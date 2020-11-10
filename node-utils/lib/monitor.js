@@ -116,9 +116,9 @@ class Monitoring {
 
         let dataPoint = {
           interval: {
-            startTime : {
-              seconds: startTime.getTime() / 1000
-            },
+            // startTime : {
+            //   seconds: startTime.getTime() / 1000
+            // },
             endTime: {
               seconds: new Date().getTime() / 1000
             }
