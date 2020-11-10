@@ -38,13 +38,15 @@ class KrmController {
     this.dependencyGraph = new GraphParser(this.graph);
 
     // for cloud monitoring 
+    // JM - seems like these should be CUMULATIVE, but this says we can't
+    // monitor them... doesn't help much: https://cloud.google.com/monitoring/api/v3/kinds-and-types
     this.monitor = new Monitor('krm-controller-'+this.id);
     this.metrics = {
       tasks : {
         description: 'KRM tasks ready per second',
         displayName: 'Tasks Ready',
-        type: 'custom.googleapis.com/krm/v2/tasks_ready',
-        metricKind: 'CUMULATIVE',
+        type: 'custom.googleapis.com/krm/tasks_ready',
+        metricKind: 'GAUGE',
         valueType: 'INT64',
         unit: '1',
         labels: [
@@ -68,8 +70,8 @@ class KrmController {
       subjects : {
         description: 'KRM subjects ready per second',
         displayName: 'Subjects Ready',
-        type: 'custom.googleapis.com/krm/v2/subjects_ready',
-        metricKind: 'CUMULATIVE',
+        type: 'custom.googleapis.com/krm/subjects_ready',
+        metricKind: 'GAUGE',
         valueType: 'INT64',
         unit: '1',
         labels: [
