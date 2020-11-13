@@ -183,6 +183,7 @@ class KrmController {
       let def = this.dependencyGraph.graph[document.data.taskDefId];
       let timeout = def.options.timeout || (5 * 60 * 1000);
       if( document.data.lastUpdated < now - timeout ) {
+        logger.warn('Sending task after expired timeout window', document);
         await this.sendTask(document, {
           reason : 'window timeout expired, (lastUpdated < now - timeout)',
           now, timeout
@@ -501,11 +502,11 @@ class KrmController {
         }
       );
 
-      // resp = await collection.findOneAndUpdate(
-      //   { _id : id  },
-      //   { $addToSet : {'data.required': task.subject} },
-      //   { returnOriginal: false }
-      // );
+      resp = await collection.findOneAndUpdate(
+        { _id : id  },
+        { $addToSet : {'data.required': task.subject} },
+        { returnOriginal: false }
+      );
 
       if( resp.value ) {
         return resp.value;
