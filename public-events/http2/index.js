@@ -22,17 +22,17 @@ let shortCuts = null;
 if( fs.existsSync('/etc/krm/event-shortcuts.js') ) {
   shortCuts = require('/etc/krm/event-shortcuts.js');
   if( typeof shortCuts !== 'object' ) {
-    console.error('Shortcuts must be an object, found: '+(typeof shortCuts ))
+    logger.error('Shortcuts must be an object, found: '+(typeof shortCuts ))
     process.exit(-1);
   }
   for( let route in shortCuts ) {
     if( typeof shortCuts[route].test !== 'function' ) {
-      console.error('Shortcuts route objects must have test() method: '+route);
+      logger.error('Shortcuts route objects must have test() method: '+route);
       process.exit(-1);
     }
   }
 
-  console.log('Using shortcut routes: '+Object.keys(shortCuts));
+  logger.info('Using shortcut routes: ', Object.keys(shortCuts));
 }
 
 /**
