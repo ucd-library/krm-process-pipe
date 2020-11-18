@@ -131,7 +131,7 @@ function write(stream, msg) {
       for( id in registrations ) {
         reg = registrations[id];
         
-        if( reg.shortcut && shortcut.test(msg.subject) ) {
+        if( reg.shortcut && reg.shortcut.test(msg.subject) ) {
           write(reg.stream, {subject: msg.subject});
         } else if( reg.subject && reg.subject.path.regex.test(msg.subject) ) {
 
