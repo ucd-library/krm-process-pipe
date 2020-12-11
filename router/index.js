@@ -14,8 +14,8 @@ class Router {
     // TODO: connect to rabbitmq first
     await this.queue.connect();
     let workerQueues = {};
-    for( let taskDefId in config.graph.graph ) {
-      workerQueues[config.graph.graph[taskDefId].worker || config.task.defaultWorker] = true;
+    for( let taskDefId in config.graph ) {
+      workerQueues[config.graph[taskDefId].worker || config.task.defaultWorker] = true;
     }
     await this.queue.createQueues(Object.keys(workerQueues));
 

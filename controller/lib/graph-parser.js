@@ -19,8 +19,7 @@ class GraphParser {
     if( typeof graph === 'string' ) {
       graph = require(graph);
     }
-    this.name = graph.name;
-    this.graph = graph.graph;
+    this.graph = graph;
 
     for( let key in this.graph ) {
       // given a subject uri string, break out into various components

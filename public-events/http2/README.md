@@ -8,6 +8,8 @@ The default query looks like:
 curl http://[hostname]/_/h2/[uri encoded subject match]
 ```
 
+*Note: For testing agains localhost (http, no-ssl) connections, use the `curl --http2-prior-knowledge` flag.
+
 Ex:
 
 ```bash

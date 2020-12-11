@@ -18,20 +18,8 @@ const KAFKA_GROUP_ID = 'http2-service';
 /**
  * Load the shortcuts.  This allows for simpler pre-defined routes
  */
-let shortCuts = null;
-if( fs.existsSync('/etc/krm/event-shortcuts.js') ) {
-  shortCuts = require('/etc/krm/event-shortcuts.js');
-  if( typeof shortCuts !== 'object' ) {
-    logger.error('Shortcuts must be an object, found: '+(typeof shortCuts ))
-    process.exit(-1);
-  }
-  for( let route in shortCuts ) {
-    if( typeof shortCuts[route].test !== 'function' ) {
-      logger.error('Shortcuts route objects must have test() method: '+route);
-      process.exit(-1);
-    }
-  }
-
+let shortCuts = config.eventShortcuts;
+if( shortCuts ) {
   logger.info('Using shortcut routes: ', Object.keys(shortCuts));
 }
 

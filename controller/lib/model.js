@@ -100,7 +100,7 @@ class KrmController {
         // beforeWriteCallback: this.beforeMetricWrite,
         onReset : () => {
           let stats = {};
-          for( let taskId in this.graph.graph ) {
+          for( let taskId in this.graph ) {
             stats[taskId] = {
               taskId,
               value : 0,

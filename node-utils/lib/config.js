@@ -6,15 +6,30 @@ const { env } = require('process');
 // const ROOT_FS = path.resolve(__dirname, '..', '..', 'storage');
 const SERVER_URL = process.env.SERVER_URL || 'http://casita.library.ucdavis.edu';
 
-let graph = null;
-if( fs.existsSync(process.env.GRAPH_FILE || '/etc/krm/graph') ) {
-  graph = require(process.env.GRAPH_FILE || '/etc/krm/graph');
+let setup = {};
+if( fs.existsSync(process.env.SETUP_FILE || '/etc/krm/setup') || fs.existsSync('/etc/krm/setup.js') ) {
+  setup = require(process.env.SETUP_FILE || '/etc/krm/setup');
+}
+
+if( !setup.services ) setup.services = [];
+if( process.env.API_SERVICES ) {
+  process.env.API_SERVICES
+    .trim()
+    .split(' ')
+    .forEach(service => {
+      service = service.trim().split(':');
+      if( service.length === 1 ) {
+        setup.services.push({hostname: service[0], route: service[0]})
+      }
+      setup.services.push({hostname: service[0], route: service[1]})
+    });
 }
 
 module.exports = {
   env : process.env.KRM_ENV || 'not-set',
 
-  graph,
+  graph : setup.graph,
+  eventShortcuts : setup.eventShortcuts,
 
   cron : {
     fsExpire : '0 0-23 * * *'
@@ -36,16 +51,7 @@ module.exports = {
   },
 
   api : {
-    services : (process.env.API_SERVICES || '')
-      .trim()
-      .split(' ')
-      .map(service => {
-        service = service.trim().split(':');
-        if( service.length === 1 ) {
-          return {hostname: service[0], route: service[0]}
-        }
-        return {hostname: service[0], route: service[1]}
-      })
+    services : setup.services
   },
 
   // resources
