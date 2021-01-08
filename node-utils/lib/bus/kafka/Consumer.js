@@ -11,6 +11,8 @@ class Consumer {
     this.loopInterval = 500;
     this.consuming = true;
 
+    logger.info('Attempting kafka connection', config);
+
     this.client
       .on('ready', () => logger.info('Kafka consumer ready'))
       .on('disconnected', e => logger.warn('Kafka consumer disconnected', e))
