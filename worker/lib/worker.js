@@ -34,7 +34,7 @@ class Worker {
           {
             key: 'env',
             valueType: 'STRING',
-            description: 'CASITA ENV',
+            description: 'KRM ENV',
           },
           {
             key: 'taskId',

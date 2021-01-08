@@ -3,8 +3,7 @@ const path = require('path');
 const {URL} = require('url');
 const { env } = require('process');
 
-// const ROOT_FS = path.resolve(__dirname, '..', '..', 'storage');
-const SERVER_URL = process.env.SERVER_URL || 'http://casita.library.ucdavis.edu';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
 let setup = {};
 if( fs.existsSync(process.env.SETUP_FILE || '/etc/krm/setup') || fs.existsSync('/etc/krm/setup.js') ) {
@@ -47,7 +46,7 @@ module.exports = {
   },
 
   task : {
-    defaultWorker : 'default.casita.library.ucdavis.edu'
+    defaultWorker : 'default.krm.library.ucdavis.edu'
   },
 
   api : {

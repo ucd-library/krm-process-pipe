@@ -1,6 +1,5 @@
-const GraphParser = require('./graph-parser');
 const uuid = require('uuid');
-const {config, Monitor, logger, bus, state} = require('@ucd-lib/krm-node-utils');
+const {config, Monitor, GraphParser, logger, bus, state} = require('@ucd-lib/krm-node-utils');
 
 const kafka = bus.kafka;
 const mongo = state.mongo;
@@ -53,7 +52,7 @@ class KrmController {
           {
             key: 'env',
             valueType: 'STRING',
-            description: 'CASITA ENV',
+            description: 'KRM ENV',
           },
           {
             key: 'taskId',
@@ -78,7 +77,7 @@ class KrmController {
           {
             key: 'env',
             valueType: 'STRING',
-            description: 'CASITA ENV',
+            description: 'KRM ENV',
           },
           {
             key: 'source',

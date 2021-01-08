@@ -1,4 +1,4 @@
-const {utils} = require('@ucd-lib/krm-node-utils');
+const utils = require('./utils');
 
 /**
  * @class GraphParser

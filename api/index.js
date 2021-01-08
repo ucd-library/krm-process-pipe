@@ -35,6 +35,9 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
+// register the /_/task-graph api
+app.use(require('./controllers'));
+
 // register services
 for( let service of config.api.services ) {
   logger.info(`Creating api service route '/_/${service.route}' to 'http://${service.hostname}'`);
