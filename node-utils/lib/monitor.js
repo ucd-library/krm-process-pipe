@@ -1,5 +1,6 @@
 const config = require('./config');
 const logger = require('./logger');
+const fs = require('fs')
 const monitoring = require('@google-cloud/monitoring');
 
 // https://cloud.google.com/monitoring/custom-metrics/creating-metrics
@@ -19,7 +20,9 @@ class Monitoring {
     this.serviceId = serviceId;
     
     let clientConfig = {};
-    if( config.google.serviceAccountFile ) {
+    if( config.google.serviceAccountFile && 
+      fs.existsSync(serviceAccountFile) &&
+      fs.lstatSync(config.google.serviceAccountFile).isFile() ) {
       clientConfig.keyFilename = config.google.serviceAccountFile;
     }
     this.client = new monitoring.MetricServiceClient(clientConfig);
