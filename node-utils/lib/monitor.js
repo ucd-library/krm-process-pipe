@@ -21,7 +21,7 @@ class Monitoring {
     
     let clientConfig = {};
     if( config.google.serviceAccountFile && 
-      fs.existsSync(serviceAccountFile) &&
+      fs.existsSync(config.google.serviceAccountFile) &&
       fs.lstatSync(config.google.serviceAccountFile).isFile() ) {
       clientConfig.keyFilename = config.google.serviceAccountFile;
     }
