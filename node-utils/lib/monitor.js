@@ -22,7 +22,7 @@ class Monitoring {
     let clientConfig = {};
     if( config.google.serviceAccountFile && 
       fs.existsSync(config.google.serviceAccountFile) &&
-      fs.lstatSync(config.google.serviceAccountFile).isFile() ) {
+      !fs.lstatSync(config.google.serviceAccountFile).isDirectory() ) {
       clientConfig.keyFilename = config.google.serviceAccountFile;
     }
     this.client = new monitoring.MetricServiceClient(clientConfig);
