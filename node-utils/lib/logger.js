@@ -45,7 +45,7 @@ let info = {
   }
 }
 if( projectId ) {
-  info.stackdriver.projectId = projectId;
+  info.customServiceAccount.projectId = projectId;
 }
 
 logger.info('logger initialized', info);
