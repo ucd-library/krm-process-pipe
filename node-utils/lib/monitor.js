@@ -51,6 +51,7 @@ class Monitoring {
 
   async ensureMetrics() {
     for( let key in this.metrics ) {
+      logger.info('Ensuring metric: ', key);
       await this.ensureMetric(this.metrics[key].metric);
     }
   }

@@ -68,7 +68,8 @@ module.exports = {
   },
 
   google : {
-    projectId : env.GOOGLE_PROJECT_ID || 'digital-ucdavis-edu',
+    // TODO: if service account file set, override project id using values.
+    projectId : env.GOOGLE_PROJECT_ID || 'casita-298223',
     serviceAccountFile : env.GOOGLE_SERVICE_ACCOUNT || '/etc/google/service-account.json'
   },
 
