@@ -80,7 +80,7 @@ class Worker {
     } catch(e) {
       logger.warn('Worker failed to run msg', e, queueMsg);
 
-      this.monitor.incrementMetric(this.metrics.error, 'taskId', {taskId: (msgData.data || {}).taskDefId});
+      this.monitor.incrementMetric(this.metrics.error.type, 'taskId', {taskId: (msgData.data || {}).taskDefId});
 
       if( !msgData ) {
         logger.error('Worker got a really bad message', queueMsg.content.toString());
