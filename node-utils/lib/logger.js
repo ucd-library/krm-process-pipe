@@ -10,7 +10,8 @@ const streams = [
 // wire in stack driver if google cloud service account provided
 let projectId;
 if( fs.existsSync(config.google.serviceAccountFile) && 
-    !fs.lstatSync(config.google.serviceAccountFile).isDirectory() ) {
+    !fs.lstatSync(config.google.serviceAccountFile).isDirectory() &&
+    (process.env.GC_LOGGING || '').toLowerCase() == 'true') {
 
   let {LoggingBunyan} = require('@google-cloud/logging-bunyan');
 
