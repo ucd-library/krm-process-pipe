@@ -24,7 +24,10 @@ class Expire {
 
     try {
       files = await fs.readdir(folder);
-    } catch(e) {}    
+    } catch(e) {
+      logger.warn('Failed to read directory: '+folder);
+      return;
+    }    
 
     if( DIRECTION === 'forward' ) {
       for( let i = 0; i < files.length; i++ ) {
@@ -38,7 +41,10 @@ class Expire {
 
     try {
       files = await fs.readdir(folder);
-    } catch(e) {}
+    } catch(e) {
+      logger.warn('Failed to read directory: '+folder);
+      return;
+    }
 
     if( files.length === 0 ) {
       try {
