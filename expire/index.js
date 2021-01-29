@@ -3,41 +3,74 @@ const CronJob = require('cron').CronJob;
 const fs = require('fs-extra');
 const path = require('path');
 
+const DIRECTION = process.env.EXPIRE_DIRECTION || 'forward';
+
 class Expire {
 
   constructor(path) {
-    this.expireCron = new CronJob(config.cron.fsExpire, () => this.expire(path));
+    this.path = path || config.fs.nfsRoot;
+    this.expireCron = new CronJob(config.cron.fsExpire, () => this.run());
     this.expireCron.start();
+    this.run();
+  }
+
+  run() {
+    logger.info(`Starting ${DIRECTION} expire process for ${this.path}`);
+    this.expire(this.path);
   }
 
   async expire(folder) {
-    if( !folder ) folder = config.fs.nfsRoot;
-    // logger.info('Crawling: '+folder);
+    let files;
 
-    let files = await fs.readdir(folder);
-    let file, stat;
+    try {
+      files = await fs.readdir(folder);
+    } catch(e) {}    
 
-    for( file of files ) {
-      file = path.join(folder, file);
-      stat = fs.lstatSync(file);
-
-      if( stat.isDirectory() ) {
-        await this.expire(file);
-        continue;
+    if( DIRECTION === 'forward' ) {
+      for( let i = 0; i < files.length; i++ ) {
+        await this.removeFile(folder, files[i]);
       }
-
-      let age = Date.now() - stat.mtime.getTime();
-      if( age > config.fs.expire * 1000 ) {
-        logger.info('expire: '+file);
-        await fs.remove(file);
+    } else {
+      for( let i = files.length-1; i >= 0; i-- ) {
+        await this.removeFile(folder, files[i]);
       }
     }
 
-    files = await fs.readdir(folder);
+    try {
+      files = await fs.readdir(folder);
+    } catch(e) {}
+
     if( files.length === 0 ) {
-      await fs.remove(folder);
+      try {
+        await fs.remove(folder);
+      } catch(e) {}
     }
   }
+
+  async removeFile(folder, file) {
+    let stat;
+    file = path.join(folder, file);
+
+    try {
+      stat = fs.lstatSync(file);
+    } catch(e) {
+      return;
+    }
+
+    if( stat.isDirectory() ) {
+      await this.expire(file);
+      return;
+    }
+
+    let age = Date.now() - stat.mtime.getTime();
+    if( age > config.fs.expire * 1000 ) {
+      try {
+        logger.debug('expire: '+file);
+        await fs.remove(file);
+      } catch(e) {}
+    }
+  }
+
 }
 
 new Expire();

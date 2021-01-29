@@ -26,8 +26,8 @@ class Worker {
       error : {
         description: 'KRM worker task errors',
         displayName: 'Worker Task Errors',
-        type: 'custom.googleapis.com/krm/worker_task_errors',
-        metricKind: 'CUMULATIVE',
+        type: 'custom.googleapis.com/krm/worker_task_errors_gauge',
+        metricKind: 'GAUGE',
         valueType: 'INT64',
         unit: '1',
         labels: [

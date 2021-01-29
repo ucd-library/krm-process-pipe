@@ -30,7 +30,7 @@ class Monitoring {
     this.metrics = {};
     this.data = {};
 
-    this.ensureMetrics();
+    // this.ensureMetrics();
 
     this.interval = 1000 * 30;
     this.startTime = new Date();
