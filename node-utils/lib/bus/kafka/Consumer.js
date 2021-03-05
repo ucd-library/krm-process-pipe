@@ -17,11 +17,11 @@ class Consumer {
       .on('ready', () => logger.info('Kafka consumer ready'))
       .on('disconnected', e => logger.warn('Kafka consumer disconnected', e))
       .on('event.error', e => {
-        logger.error('1. Kafka consumer event.error', e);
-        // setTimeout(() => {
-        //   logger.error('Killing process due to error in kafka connection');
-        //   process.exit(-1);
-        // }, 50);
+        logger.error('Kafka consumer event.error', e);
+        setTimeout(() => {
+          logger.error('Killing process due to error in kafka connection');
+          process.exit(-1);
+        }, 50);
       });
   }
 
@@ -36,18 +36,23 @@ class Consumer {
    */
   async consume(callback) {
     while( 1 ) {
-      if( !this.consuming ) break;
+      try {
+        if( !this.consuming ) break;
 
-      let result = await this.consumeOne();
+        let result = await this.consumeOne();
 
-      if( result ) {
-        try {
-          await callback(result);
-        } catch(e) {
-          logger.error('KafkaConsumer failed to handle message', e, result);
+        if( result ) {
+          try {
+            await callback(result);
+          } catch(e) {
+            logger.error('KafkaConsumer failed to handle message', e, result);
+          }
+          await this.client.commit();
+        } else {
+          await this._sleep();
         }
-        await this.client.commit();
-      } else {
+      } catch(e) {
+        logger.error('KafkaConsumer failed to consume message', e);
         await this._sleep();
       }
     }
