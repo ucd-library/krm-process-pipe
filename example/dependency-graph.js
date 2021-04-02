@@ -13,30 +13,48 @@ const FIRE_DETECTION_IMAGE = 'fire-detection.casita.library.ucdavis.edu';
 module.exports = {
   name : 'casita',
 
+  enableQueue : true,
+
+  images : {
+    node : 'node:14',
+    'image-utils' : 'ucdlib/casita-image-utils'
+  },
+
   config : {
     fs : {
       nfsRoot : '/storage/nfs'
     }
   },
 
-  graph : {
+  schemas : [
+    {
+      "$id": "https://argonaut.library.ucdavis.edu/geosr-product.schema.json",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "GOES-R Product",
+      "description": "Data for a GOES-R product",
+      "required": [ "satellite", "date", "hour","minsec","apid" ,"file"],
+      "type": "object",
+      "properties": {
+        "satellite": {"type": "string"},
+        "date": {"type": "string"},
+        "hour": {"type": "string"},
+        "minsec": {"type": "string"},
+        "band": {"type": "string"},
+        "apid": {"type": "string"},
+        "block": {"type": "string"},
+        "file": {"type": "string"},
+      }
+    }
+  ],
+
+  steps : {
     'goesr-product' : {
       description : 'Add new product to system',
-      external : true,
       output : {
         details : {
           from : 'stdout',
           type : 'json',
-          schema : {
-            satellite : 'string',
-            date : 'string',
-            hour : 'string',
-            minsec : 'string',
-            band : 'number',
-            apid : 'string',
-            block : 'number',
-            file : 'string'
-          }
+          schema : "https://argonaut.library.ucdavis.edu/geosr-product.schema.json"
         }
       }
     },
@@ -49,7 +67,7 @@ module.exports = {
       cmd : [
         'node-image-utils scale',
         '--input={{steps.block-composite.message.file}}',
-        '--band={{steps.goesr-product[0].details.band}}',
+        '--band={{steps.goesr-product.details.band}}',
         '--output={{finalize.output-file}}'
       ],
       dependsOn : [{

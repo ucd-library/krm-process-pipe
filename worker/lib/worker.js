@@ -9,6 +9,7 @@ class Worker {
 
   constructor() {
     if( !config.worker.queue ) {
+    }
       
 
     this.id = uuid.v4();
@@ -16,7 +17,7 @@ class Worker {
 
     if( config.worker.queue === 'rabbitmq' ) {
       this.queue = new RabbitMQ();
-    } else if ( config.worker.queue === 'consumer' ) {
+    } else if ( config.worker.queue === 'kafka' ) {
       this.queue = new kafka.Consumer();
     } else {
       throw new Error('No queue set for worker');

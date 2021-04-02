@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-worker-deployment
+spec:
+  selector:
+    matchLabels:
+      app: demo-worker-deployment
+  template:
+    metadata:
+      labels:
+        app: demo-worker-deployment
+    spec:
+      initContainers:
+      - name: krm-worker-connector
+        image: ucdlib/krm-worker-connector:latest
+        imagePullPolicy: Always
+        command: ["/bin/sh"]
+        args: ["-c", "cp -r /krm-worker-connector/* /mnt/krm-worker-connector" ]
+        volumeMounts:
+        - mountPath: /mnt/krm-worker-connector
+          name: krm-worker-connector-volume
+      containers:
+      - name: debian-exec-env
+        image: debian:buster
+        imagePullPolicy: Always
+        command: ["/bin/sh"]
+        args: ["-c", "ln -s -f /etc/krm-worker-connector/node-binaries/bin/* /usr/bin/; node /etc/krm-worker-connector" ]
+        env:
+        - name: WORKER_TOPIC
+          value: "debian:buster"
+        - name: WORKER_QUEUE
+          value: "kafka"
+        volumeMounts:
+        - mountPath: /etc/krm-worker-connector
+          name: krm-worker-connector-volume
+      volumes:
+      - name: krm-worker-connector-volume
+        emptyDir: {}

@@ -28,12 +28,12 @@ class Router {
     await this.kafkaConsumer.connect();
 
     await kafka.utils.ensureTopic({
-      topic:  config.kafka.topics.taskReady,
+      topic:  config.kafka.topics.execComplete,
       num_partitions: config.kafka.partitionsPerTopic,
       replication_factor: 1
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-    await this.kafkaConsumer.subscribe([config.kafka.topics.taskReady]);
+    await this.kafkaConsumer.subscribe([config.kafka.topics.execComplete]);
     await this.listen();
   }
 

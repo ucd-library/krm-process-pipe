@@ -19,26 +19,43 @@ class GraphParser {
     if( typeof graph === 'string' ) {
       graph = require(graph);
     }
+
     this.graph = graph;
 
-    for( let key in this.graph ) {
-      // given a subject uri string, break out into various components
-      // required to match subject uris
-      this.graph[key].subject = utils.subjectParser(key);
+    // find all images used, this will be required to setup topics
+    if( !this.graph.images ) this.graph.images = {};
+    let images = new Set();
+    Object.values(this.graph.images)
+      .forEach(image => images.add(image));
 
-      // a task id is the subject uri with variable names instead of values
-      this.graph[key].id = key;
+    for( let key in this.graph.steps ) {
+      let step = this.steps.graph[key];
 
-      // make sure we have at least empty options set
-      if( !this.graph[key].options ) {
-        this.graph[key].options = {};
+      // set step id for easy access
+      step.id = key;
+
+      if( step.dependsOn ) {
+        step.dependsOn.forEach(item => {
+          if( !item.filter ) return;
+          item.filter.forEach(filter => {
+            if( typeof filter === 'string' ) return;  
+            if( graph.images[filter.image] ) return;
+            images.add(filter.image);
+          });
+        });
       }
 
-      // parse all dependency subject uri's for this task
-      for( let depend of this.graph[key].dependencies ) {
-        depend.subject = utils.subjectParser(depend.subject);
+      if( step.groupBy && step.groupBy.ready && !graph.images[step.groupBy.ready.image] ) {
+        images.add(step.groupBy.ready.image);
       }
+
+      ['preCmd', 'cmd', 'postCmd'].forEach(cmd => {
+        if( graph.images[cmd.image] ) return;
+        images.add(cmd.image);
+      });
     }
+
+    this.images = [...images];
   }
 
   /**

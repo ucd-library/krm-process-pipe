@@ -35,6 +35,8 @@ class Consumer {
    * @param {function} callback 
    */
   async consume(callback) {
+    this.consuming = true;
+
     while( 1 ) {
       try {
         if( !this.consuming ) break;
@@ -57,6 +59,12 @@ class Consumer {
       }
     }
   }
+
+  stopConsuming() {
+    this.consuming = false;
+  }
+
+
 
   /**
    * @method consumeOne

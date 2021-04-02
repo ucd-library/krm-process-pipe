@@ -34,19 +34,10 @@ module.exports = {
     fsExpire : '0 0-23 * * *'
   },
 
-  controller : {
-    // WARNING: this will store all outgoing messages in MongoDB so they can be queried
-    debug : process.env.DEBUG_CONTROLLER === 'true' ? true : false
-  },
-
   fs : {
     workerRoot : process.env.WORKER_FS_ROOT || '/storage/worker',
     nfsRoot : process.env.NFS_ROOT || '/storage/nfs',
     expire : 24 * 60 * 60
-  },
-
-  task : {
-    defaultWorker : 'default.krm.library.ucdavis.edu'
   },
 
   api : {
@@ -60,16 +51,16 @@ module.exports = {
   kafka : {
     host : env.KAFKA_HOST || 'kafka',
     port : env.KAFKA_PORT || 9092,
-    partitionsPerTopic : 10,
+    partitionsPerTopic : env.KAFKA_TOPIC_PARTITIONS || 10,
     topics : {
-      subjectReady : 'subject-ready',
-      taskReady : 'task-ready'
+      execComplete : 'exec-complete',
+      rabbitMqRoute
     }
   },
 
   google : {
     // TODO: if service account file set, override project id using values.
-    projectId : env.GOOGLE_PROJECT_ID || 'casita-298223',
+    projectId : env.GOOGLE_PROJECT_ID,
     serviceAccountFile : env.GOOGLE_SERVICE_ACCOUNT || '/etc/google/service-account.json'
   },
 
@@ -78,14 +69,9 @@ module.exports = {
     level : env.LOG_LEVEL || 'info'
   },
 
-  mongo : {
-    dbName : 'krm',
-    collections : {
-      krmState : 'state',
-      krmDebug : 'debug'
-    },
-    host : env.MONGO_HOST || 'mongo',
-    port : env.MONGO_PORT || 27017,
+  redis : {
+    host : env.REDIS_HOST || 'redis',
+    port : env.REDIS_PORT || 6379,
   },
 
   server : {
@@ -99,6 +85,7 @@ module.exports = {
   },
 
   worker : {
+    topic : env.WORKER_TOPIC,
     queue : env.WORKER_QUEUE || env.WORKER_TYPE,
     debug : env.DEBUG_WORKER === 'true' ? true : false,
     maxRetries : 3
