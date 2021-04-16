@@ -42,7 +42,7 @@ class Expire {
     try {
       files = await fs.readdir(folder);
     } catch(e) {
-      logger.warn('Failed to read directory: '+folder);
+      logger.debug('Failed to read directory: '+folder);
       return;
     }
 
