@@ -4,7 +4,7 @@ module.exports = {
 
   dependsOn : {
     window : '5min',
-    tasks : [{
+    steps : [{
       id : 'goesr-product',
       // filter on image product guids
       filter : [
