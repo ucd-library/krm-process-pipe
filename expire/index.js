@@ -15,15 +15,21 @@ class Expire {
     this.run();
   }
 
-  run() {
-    logger.info(`Starting ${DIRECTION} expire process for ${this.path}`);
-    this.expire(this.path);
+  async run() {
+    if( this.running ) return;
+
+    this.running = true;
+    logger.info(`Starting ${DIRECTION} expire process for ${this.path}.  MAX_DEPTH=${MAX_DEPTH}`);
+    await this.expire(this.path);
+    logger.info(`Completed ${DIRECTION} expire process for ${this.path}`);
+    this.running = false;
   }
 
   async expire(folder, depth=-1) {
-    depth = depth + 1;
+    let cdepth = depth + 1;
     let files;
 
+    logger.debug(`Crawlng ${folder} depth=${depth}`)
     try {
       files = await fs.readdir(folder);
     } catch(e) {
@@ -33,11 +39,11 @@ class Expire {
 
     if( DIRECTION === 'forward' ) {
       for( let i = 0; i < files.length; i++ ) {
-        await this.removeFile(folder, files[i], depth);
+        await this.removeFile(folder, files[i], cdepth);
       }
     } else {
       for( let i = files.length-1; i >= 0; i-- ) {
-        await this.removeFile(folder, files[i], depth);
+        await this.removeFile(folder, files[i], cdepth);
       }
     }
 
