@@ -4,6 +4,7 @@ const fs = require('fs-extra');
 const path = require('path');
 
 const DIRECTION = process.env.EXPIRE_DIRECTION || 'forward';
+const MAX_DEPTH = parseInt(process.env.EXPIRE_DIR_DEPTH || -1);
 
 class Expire {
 
@@ -19,7 +20,8 @@ class Expire {
     this.expire(this.path);
   }
 
-  async expire(folder) {
+  async expire(folder, depth=-1) {
+    depth = depth + 1;
     let files;
 
     try {
@@ -31,11 +33,11 @@ class Expire {
 
     if( DIRECTION === 'forward' ) {
       for( let i = 0; i < files.length; i++ ) {
-        await this.removeFile(folder, files[i]);
+        await this.removeFile(folder, files[i], depth);
       }
     } else {
       for( let i = files.length-1; i >= 0; i-- ) {
-        await this.removeFile(folder, files[i]);
+        await this.removeFile(folder, files[i], depth);
       }
     }
 
@@ -53,7 +55,7 @@ class Expire {
     }
   }
 
-  async removeFile(folder, file) {
+  async removeFile(folder, file, depth) {
     let stat;
     file = path.join(folder, file);
 
@@ -63,16 +65,29 @@ class Expire {
       return;
     }
 
+    let age = Date.now() - stat.mtime.getTime();
+
+    // if directory
     if( stat.isDirectory() ) {
-      await this.expire(file);
+      // if beyond max depth stop crawling
+      if( MAX_DEPTH !== -1 && depth >= MAX_DEPTH ) {
+        // if dir is expire, remove it and all files
+        if( age > config.fs.expire * 1000 ) {
+          logger.debug(`expire dir (depth=${depth}): `+file);
+          await fs.remove(file);
+        }
+      } else {
+        await this.expire(file, depth);
+      }
+      
       return;
     }
 
-    let age = Date.now() - stat.mtime.getTime();
+    
     if( age > config.fs.expire * 1000 ) {
       try {
         logger.debug('expire: '+file);
-        await fs.remove(file);
+        await fs.remove(file, depth);
       } catch(e) {}
     }
   }
