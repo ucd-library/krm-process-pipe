@@ -71,7 +71,7 @@ class Expire {
     if( stat.isDirectory() ) {
       // if beyond max depth stop crawling
       if( MAX_DEPTH !== -1 && depth >= MAX_DEPTH ) {
-        // if dir is expire, remove it and all files
+        // if dir is expired, remove it and all files
         if( age > config.fs.expire * 1000 ) {
           logger.debug(`expire dir (depth=${depth}): `+file);
           await fs.remove(file);
