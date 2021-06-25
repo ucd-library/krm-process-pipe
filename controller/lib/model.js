@@ -180,7 +180,7 @@ class KrmController {
       // TODO: recheck ready here as well
 
       let def = this.dependencyGraph.graph[document.data.taskDefId];
-      let timeout = def.options.timeout || (5 * 60 * 1000);
+      let timeout = (def.options || {}).timeout || (5 * 60 * 1000);
       if( document.data.lastUpdated < now - timeout ) {
         logger.warn('Sending task after expired timeout window', document);
         await this.sendTask(document, {

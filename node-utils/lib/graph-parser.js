@@ -87,6 +87,9 @@ class GraphParser {
         });
 
         // TODO: if a constraint arg is present and doesn't match, ignore!
+        if( depend.id === 'http://casita.library.ucdavis.edu/ring-buffer/{date}/{hour}/{minsec}/{band}/{apid}/blocks/{block}/image.png') {
+          console.log(subjectHref, args, depend.constraints);
+        }
         if( depend.constraints ) {
           match = true;
           for( let key in depend.constraints ) {
@@ -96,6 +99,9 @@ class GraphParser {
             }
           }
           if( !match ) continue;
+        }
+        if( depend.id === 'http://casita.library.ucdavis.edu/ring-buffer/{date}/{hour}/{minsec}/{band}/{apid}/blocks/{block}/image.png') {
+          console.log('MATCH!!!!!!!!!!!!!!!!!!!!!!');
         }
   
         // create task definition object
