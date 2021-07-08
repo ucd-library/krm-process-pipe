@@ -2,6 +2,7 @@ const {logger, config} = require('@ucd-lib/krm-node-utils');
 const CronJob = require('cron').CronJob;
 const fs = require('fs-extra');
 const path = require('path');
+const pkg = require('./package.json');
 
 const DIRECTION = process.env.EXPIRE_DIRECTION || 'forward';
 const MAX_DEPTH = parseInt(process.env.EXPIRE_DIR_DEPTH || -1);
@@ -19,7 +20,7 @@ class Expire {
     if( this.running ) return;
 
     this.running = true;
-    logger.info(`Starting ${DIRECTION} expire process for ${this.path}.  MAX_DEPTH=${MAX_DEPTH}`);
+    logger.info(`Starting ${DIRECTION} expire (v${pkg.version}) process for ${this.path}.  MAX_DEPTH=${MAX_DEPTH}`);
     await this.expire(this.path);
     logger.info(`Completed ${DIRECTION} expire process for ${this.path}`);
     this.running = false;
@@ -80,7 +81,9 @@ class Expire {
         // if dir is expired, remove it and all files
         if( age > config.fs.expire * 1000 ) {
           logger.debug(`expire dir (depth=${depth}): `+file);
-          await fs.remove(file);
+          try {
+            await fs.remove(file);
+          } catch(e) {}
         }
       } else {
         await this.expire(file, depth);
