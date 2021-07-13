@@ -40,7 +40,10 @@ class Router {
       await kafka.utils.ensureTopic({
         topic: topicName,
         num_partitions: 1,
-        replication_factor: 1
+        replication_factor: 1,
+        config : {
+          'retention.ms' : (1000 * 60 * 60 * 24 * 2)+'',
+        }
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
       let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);

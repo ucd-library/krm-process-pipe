@@ -32,7 +32,10 @@ class KrmController {
     await kafka.utils.ensureTopic({
       topic : config.kafka.topics.subjectReady,
       num_partitions: 1,
-      replication_factor: 1
+      replication_factor: 1,
+      config : {
+        'retention.ms' : (1000 * 60 * 60 * 24 * 2)+'',
+      }
     }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
     let allTopics = {};
@@ -48,7 +51,10 @@ class KrmController {
       await kafka.utils.ensureTopic({
         topic,
         num_partitions: 1,
-        replication_factor: 1
+        replication_factor: 1,
+        config : {
+          'retention.ms' : (1000 * 60 * 60 * 24 * 2)+'',
+        }
       }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
     }
 
