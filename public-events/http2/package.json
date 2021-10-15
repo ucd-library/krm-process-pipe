@@ -1,15 +1,14 @@
 {
-  "name": "krm-expire",
-  "version": "0.0.2",
+  "name": "krm-http2-service",
+  "version": "0.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "jrmerz@ucdavis.edu",
+  "license": "MIT",
   "dependencies": {
-    "cron": "^1.8.2",
-    "fs-extra": "^9.0.1"
+    "uuid": "^8.3.1"
   }
 }

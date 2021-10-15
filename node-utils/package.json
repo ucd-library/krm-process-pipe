@@ -13,6 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "@google-cloud/logging-bunyan": "^3.0.0",
+    "@google-cloud/monitoring": "^2.1.2",
+    "@ucd-lib/ksqldb-client": "^0.0.1",
     "amqplib": "^0.6.0",
     "bunyan": "^1.8.14",
     "fs-extra": "^9.0.1",

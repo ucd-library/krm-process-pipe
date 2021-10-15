@@ -1,5 +1,6 @@
 const express = require('express');
 const serveIndex = require('serve-index');
+const compression = require('compression');
 const {logger, config} = require('@ucd-lib/krm-node-utils');
 const httpProxy = require('http-proxy');
 
@@ -18,6 +19,7 @@ proxy.on('error', err => logger.warn('api proxy error', err));
 
 const wsServiceMap = {};
 
+app.use(compression());
 app.use(cors);
 
 // handle websocket upgrade requests
@@ -33,9 +35,12 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
+// register the /_/task-graph api
+app.use(require('./controllers'));
+
 // register services
 for( let service of config.api.services ) {
-  logger.info(`Creating api service route /_/${service.route} to http://${service.hostname}`);
+  logger.info(`Creating api service route '/_/${service.route}' to 'http://${service.hostname}'`);
   
   // required to handle websocket upgrade requests
   wsServiceMap[service.hostname] = new RegExp(`^/_/${service.route}(/.*|$)`);
@@ -48,8 +53,7 @@ for( let service of config.api.services ) {
   });
 }
 
-app.use(express.static(config.fs.nfsRoot));
-app.use(serveIndex(config.fs.nfsRoot, {'icons': true}))
+app.use(express.static(config.fs.nfsRoot), serveIndex(config.fs.nfsRoot, {'icons': true}));
 
 server.listen(3000, async () => {
   logger.info('api listening to port: 3000');

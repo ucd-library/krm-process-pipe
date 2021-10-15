@@ -4,6 +4,8 @@ module.exports = {
   state : require('./lib/state'),
   config : require('./lib/config'),
   logger : require('./lib/logger'),
+  Monitor : require('./lib/monitor'),
+  GraphParser : require('./lib/graph-parser'),
   StartSubjectModel : require('./lib/start-subject-model'),
   waitUtil : require('./lib/wait-util'),
   utils : require('./lib/utils')

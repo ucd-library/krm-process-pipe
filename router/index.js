@@ -14,50 +14,26 @@ class Router {
     // TODO: connect to rabbitmq first
     await this.queue.connect();
     let workerQueues = {};
-    for( let subjectId in config.graph.graph ) {
-      workerQueues[config.graph.graph[subjectId].worker || config.task.defaultWorker] = true;
+    for( let taskDefId in config.graph ) {
+      workerQueues[config.graph[taskDefId].worker || config.task.defaultWorker] = true;
     }
     await this.queue.createQueues(Object.keys(workerQueues));
 
     this.kafkaConsumer = new kafka.Consumer({
       'group.id': this.groupId,
       'metadata.broker.list': config.kafka.host+':'+config.kafka.port,
-      'enable.auto.commit': true
+      'enable.auto.commit': false,
+      'auto.offset.reset' : 'earliest'
     });
     await this.kafkaConsumer.connect();
 
-    let allTopics = {};
-    for( let subjectId in config.graph.graph ) {
-      allTopics[kafka.utils.getTopicName(subjectId)] = true;
-      if( !config.graph.graph[subjectId].dependencies ) continue;
-      for( let dep of config.graph.graph[subjectId].dependencies ) {
-        allTopics[kafka.utils.getTopicName(dep.subject)] = true; 
-      }
-    }
+    await kafka.utils.ensureTopic({
+      topic:  config.kafka.topics.taskReady,
+      num_partitions: config.kafka.partitionsPerTopic,
+      replication_factor: 1
+    }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
 
-    let topics = [];
-    for( let topicName of Object.keys(allTopics) ) {
-      await kafka.utils.ensureTopic({
-        topic: topicName,
-        num_partitions: 1,
-        replication_factor: 1,
-        config : {
-          'retention.ms' : (1000 * 60 * 60 * 24 * 2)+'',
-        }
-      }, {'metadata.broker.list': config.kafka.host+':'+config.kafka.port});
-
-      let watermarks = await this.kafkaConsumer.queryWatermarkOffsets(topicName);
-      let topic = await this.kafkaConsumer.committed(topicName);
-      if( topic[0].offset === undefined ) {
-        logger.info('No offset set for topic', topic, 'setting offset value to low water mark: '+watermarks.lowOffset);
-        topic[0].offset = watermarks.lowOffset;
-      }
-
-      topics.push(topic[0]);
-      logger.info(`Router (group.id=${this.groupId}) kafka status=`, topic, 'watermarks=', watermarks);
-    }
-
-    await this.kafkaConsumer.assign(topics);
+    await this.kafkaConsumer.subscribe([config.kafka.topics.taskReady]);
     await this.listen();
   }
 

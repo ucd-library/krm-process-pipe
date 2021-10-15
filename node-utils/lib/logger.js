@@ -10,7 +10,8 @@ const streams = [
 // wire in stack driver if google cloud service account provided
 let projectId;
 if( fs.existsSync(config.google.serviceAccountFile) && 
-    fs.lstatSync(config.google.serviceAccountFile).isFile() ) {
+    !fs.lstatSync(config.google.serviceAccountFile).isDirectory() &&
+    (process.env.GC_LOGGING || '').toLowerCase() == 'true') {
 
   let {LoggingBunyan} = require('@google-cloud/logging-bunyan');
 
@@ -39,13 +40,13 @@ let logger = bunyan.createLogger({
 let info = {
   name: config.logging.name,
   level: config.logging.level,
-  stackdriver : {
+  customServiceAccount : {
     enabled : projectId ? true : false,
     file : config.google.serviceAccountFile
   }
 }
 if( projectId ) {
-  info.stackdriver.projectId = projectId;
+  info.customServiceAccount.projectId = projectId;
 }
 
 logger.info('logger initialized', info);

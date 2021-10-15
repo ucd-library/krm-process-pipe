@@ -3,16 +3,32 @@ const path = require('path');
 const {URL} = require('url');
 const { env } = require('process');
 
-// const ROOT_FS = path.resolve(__dirname, '..', '..', 'storage');
-const SERVER_URL = process.env.SERVER_URL || 'http://casita.library.ucdavis.edu';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:3000';
 
-let graph = null;
-if( fs.existsSync(process.env.GRAPH_FILE || '/etc/krm/graph') ) {
-  graph = require(process.env.GRAPH_FILE || '/etc/krm/graph');
+let setup = {};
+if( fs.existsSync(process.env.SETUP_FILE || '/etc/krm/setup') || fs.existsSync('/etc/krm/setup.js') ) {
+  setup = require(process.env.SETUP_FILE || '/etc/krm/setup');
+}
+
+if( !setup.services ) setup.services = [];
+if( process.env.API_SERVICES ) {
+  process.env.API_SERVICES
+    .trim()
+    .split(' ')
+    .forEach(service => {
+      service = service.trim().split(':');
+      if( service.length === 1 ) {
+        setup.services.push({hostname: service[0], route: service[0]})
+      }
+      setup.services.push({hostname: service[0], route: service[1]})
+    });
 }
 
 module.exports = {
-  graph,
+  env : process.env.KRM_ENV || 'not-set',
+
+  graph : setup.graph,
+  eventShortcuts : setup.eventShortcuts,
 
   cron : {
     fsExpire : '0 0-23 * * *'
@@ -30,46 +46,30 @@ module.exports = {
   },
 
   task : {
-    defaultWorker : 'default.casita.library.ucdavis.edu'
+    defaultWorker : 'default.krm.library.ucdavis.edu'
   },
 
   api : {
-    services : (process.env.API_SERVICES || '')
-      .trim()
-      .split(' ')
-      .map(service => {
-        service = service.trim().split(':');
-        if( service.length === 1 ) {
-          return {hostname: service[0], route: service[0]}
-        }
-        return {hostname: service[0], route: service[1]}
-      })
+    services : setup.services
   },
 
+  // resources
+  // https://docs.confluent.io/4.1.0/clients/librdkafka/INTRODUCTION_8md.html
+  // https://kafka.apache.org/08/documentation.html
+  // https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
   kafka : {
     host : env.KAFKA_HOST || 'kafka',
     port : env.KAFKA_PORT || 9092,
+    partitionsPerTopic : 10,
     topics : {
-      subjectReady : 'subject-ready'
+      subjectReady : 'subject-ready',
+      taskReady : 'task-ready'
     }
-    // resources
-    // https://docs.confluent.io/4.1.0/clients/librdkafka/INTRODUCTION_8md.html
-    // https://kafka.apache.org/08/documentation.html
-    // https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-    // defaultConfig : {
-    //   'batch.num.messages' : 20,
-    //   'batch.size' : 200000,
-    //   'queue.buffering.max.ms' : 200
-    // }
-    // message.max.bytes
-    // max.message.bytes
-    // batch.size
-    // linger.ms
-    // max.block.ms
-    // max.request.size
   },
 
   google : {
+    // TODO: if service account file set, override project id using values.
+    projectId : env.GOOGLE_PROJECT_ID || 'casita-298223',
     serviceAccountFile : env.GOOGLE_SERVICE_ACCOUNT || '/etc/google/service-account.json'
   },
 

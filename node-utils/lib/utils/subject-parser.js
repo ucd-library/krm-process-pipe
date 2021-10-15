@@ -1,6 +1,26 @@
 const {URL} = require('url');
 
-module.exports = function subjectParser(subject='') {
+module.exports = function subjectParser(subject='*') {
+  if( subject === '*' ) {
+    return {
+      href: '*',
+      origin: '*',
+      protocol: '*',
+      host: '*',
+      hostname: '*',
+      port: '*',
+      pathname: '*',
+      search: '*',
+      searchParams: '*',
+      hash: '*',
+      path : {
+        args : [],
+        parts : [],
+        regex : /.*/
+      }
+    }
+  }
+
   subject = new URL(subject);
 
   subject = {
