@@ -48,8 +48,39 @@ class Worker {
           }
         ]
       },
+      kMsgTime : {
+        description: 'Time message was in kafka',
+        displayName: 'Kafka delivery time',
+        type: 'custom.googleapis.com/krm/kafka-delivery-time',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: 'ms',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'queue',
+            valueType: 'STRING',
+            description: 'KRM Queue name',
+          },
+          {
+            key: 'type',
+            valueType: 'STRING',
+            description: 'Worker type',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      }
     }
     this.monitor.registerMetric(this.metrics.error);
+    this.monitor.registerMetric(this.metrics.kMsgTime);
     this.monitor.ensureMetrics();
   }
 
@@ -72,6 +103,16 @@ class Worker {
         msgData.data = JSON.parse(msgData.data);
       }
       logger.info('Worker running msg', msgData.subject);
+
+      this.monitor.setMaxMetric(
+        this.metrics.kMsgTime.type,
+         'type', 
+         Date.now() - (new Date(msgData.time)).getTime(),
+         {
+          queue: config.worker.queue,
+          type: process.env.WORKER_TYPE || 'no-set'
+        }
+      );
 
       // TODO, does this work?
       await this.run(msgData);

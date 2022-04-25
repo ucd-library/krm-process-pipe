@@ -91,6 +91,8 @@ class Monitoring {
     args.value = value;
     
     this.data[type][args[key]] = args;
+
+    logger.debug(`setting metric ${type} ${args[key]}`, args);
   }
 
   getMetricValue(type, key) {
@@ -100,6 +102,7 @@ class Monitoring {
 
   async write() {
     let data = this.data;
+    logger.debug('sending metrics for: ', Object.keys(data));
 
     let tmp = {};
     Object.keys(data).forEach(type => {
@@ -158,7 +161,9 @@ class Monitoring {
       
         // Writes time series data
         try {
+          logger.debug(`sendig metric ${type} ${key}`, {value:item.value}, labels);
           let result = await this.client.createTimeSeries(request);
+          logger.debug(`metric create result ${type} ${key}`, result)
         } catch(e) {
           logger.warn(`error writing metric ${type} ${key}`, e);
         }
