@@ -77,11 +77,42 @@ class Worker {
             description: 'Service Instance',
           }
         ]
+      },
+      execTime : {
+        description: 'Time for worker to complete task',
+        displayName: 'Worker execution time',
+        type: 'custom.googleapis.com/krm/worker-exec-time',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: 'ms',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'subject',
+            valueType: 'STRING',
+            description: 'KRM subject name',
+          },
+          {
+            key: 'type',
+            valueType: 'STRING',
+            description: 'Worker type',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
       }
     }
     this.monitor.registerMetric(this.metrics.error);
     this.monitor.registerMetric(this.metrics.kMsgTime);
-    this.monitor.ensureMetrics();
+    this.monitor.registerMetric(this.metrics.execTime);
+    // this.monitor.ensureMetrics();
   }
 
   async connect() {
@@ -114,8 +145,21 @@ class Worker {
         }
       );
 
+      let start = Date.now();
+
       // TODO, does this work?
       await this.run(msgData);
+
+      this.monitor.setMaxMetric(
+        this.metrics.execTime.type,
+         'type', 
+         Date.now() - start,
+         {
+          queue: config.worker.queue,
+          subject: msgData.subject,
+          type: process.env.WORKER_TYPE || 'no-set'
+        }
+      );
 
       await this.queue.ack(queueMsg);
     } catch(e) {
