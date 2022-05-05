@@ -181,7 +181,8 @@ class KrmController {
       let def = this.dependencyGraph.graph[document.data.taskDefId];
 
       if( !def ) {
-        logger.warn(`Delay found task id ${document.data.taskDefId} with no definition, ignoring`);
+        logger.warn(`Delay found task id ${document.data.taskDefId} with no definition, ignoring`, document);
+        await collection.deleteOne({id: document.id});
         continue;
       }
 
