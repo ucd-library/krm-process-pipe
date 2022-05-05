@@ -179,6 +179,12 @@ class KrmController {
       // TODO: recheck ready here as well
 
       let def = this.dependencyGraph.graph[document.data.taskDefId];
+
+      if( !def ) {
+        logger.warn(`Delay found task id ${document.data.taskDefId} with no definition, ignoring`);
+        continue;
+      }
+
       let timeout = (def.options || {}).timeout || (5 * 60 * 1000);
       if( document.data.lastUpdated < now - timeout ) {
         logger.warn('Sending task after expired timeout window', document);
