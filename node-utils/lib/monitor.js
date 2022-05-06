@@ -74,13 +74,15 @@ class Monitoring {
     return true;
   }
 
-  incrementMetric(type, key, args) {
+  incrementMetric(type, key, args, value) {
     let current = this.getMetricValue(type, args[key]);
+    if( value === undefined ) value = 1;
+
     if( !current ) {
-      this.setMetricValue(type, key, 1, args);
+      this.setMetricValue(type, key, value, args);
       return true;
     }
-    this.setMetricValue(type, key, current.value+1, args);
+    this.setMetricValue(type, key, current.value+value, args);
     return true;
   }
 
