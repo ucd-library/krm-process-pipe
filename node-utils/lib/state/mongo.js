@@ -59,6 +59,7 @@ class Database {
 
   async ensureIndexes() {
     let collection = await this.getCollection(config.mongo.collections.krmState);
+    collection.createIndex({id: 1});
     collection.createIndex({subject: 1});
     collection.createIndex({time: 1});
   }
