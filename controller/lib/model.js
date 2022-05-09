@@ -72,7 +72,7 @@ class KrmController {
         type: 'custom.googleapis.com/krm/pending-task-age',
         metricKind: 'GAUGE',
         valueType: 'INT64',
-        unit: '1',
+        unit: 's',
         labels: [
           {
             key: 'env',
