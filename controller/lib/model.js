@@ -294,7 +294,7 @@ class KrmController {
          Date.now() - (new Date(msg.time)).getTime(),
          {
           queue: config.kafka.topics.subjectReady,
-          type: 'krm-controller'
+          type: msg.type || 'krm-controller'
         }
       );
 
