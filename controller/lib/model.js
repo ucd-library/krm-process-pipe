@@ -66,6 +66,36 @@ class KrmController {
           }
         ]
       },
+      pendingTaskAge : {
+        description: 'How old is a pending task in the controller',
+        displayName: 'Pending task age',
+        type: 'custom.googleapis.com/krm/pending-task-age',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: '1',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'KRM ENV',
+          },
+          {
+            key: 'type',
+            valueType: 'STRING',
+            description: 'Worker type',
+          },
+          {
+            key: 'subject',
+            valueType: 'STRING',
+            description: 'Subject Id',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      },
       subjects : {
         description: 'KRM subjects ready per second',
         displayName: 'Subjects Ready',
@@ -83,6 +113,35 @@ class KrmController {
             key: 'source',
             valueType: 'STRING',
             description: 'Source of message',
+          },
+          {
+            key: 'serviceId',
+            valueType: 'STRING',
+            description: 'Service Instance',
+          }
+        ]
+      }, kMsgTime: {
+        description: 'Time message was in kafka',
+        displayName: 'Kafka delivery time',
+        type: 'custom.googleapis.com/krm/kafka-delivery-time',
+        metricKind: 'GAUGE',
+        valueType: 'INT64',
+        unit: 'ms',
+        labels: [
+          {
+            key: 'env',
+            valueType: 'STRING',
+            description: 'CASITA ENV',
+          },
+          {
+            key: 'queue',
+            valueType: 'STRING',
+            description: 'KRM Queue name',
+          },
+          {
+            key: 'type',
+            valueType: 'STRING',
+            description: 'Worker type',
           },
           {
             key: 'serviceId',
@@ -113,6 +172,12 @@ class KrmController {
     this.monitor.registerMetric(
       this.metrics.subjects
       // {beforeWriteCallback: this.beforeMetricWrite}
+    );
+    this.monitor.registerMetric(
+      this.metrics.kMsgTime
+    );
+    this.monitor.registerMetric(
+      this.metrics.pendingTaskAge
     );
     this.monitor.ensureMetrics();
   }
@@ -223,6 +288,16 @@ class KrmController {
       msg = JSON.parse(msg.value.toString('utf-8'));
       this.monitor.incrementMetric(this.metrics.subjects.type, 'source', {source: msg.source});
 
+      this.monitor.setMaxMetric(
+        this.metrics.kMsgTime.type,
+         'type', 
+         Date.now() - (new Date(msg.time)).getTime(),
+         {
+          queue: config.kafka.topics.subjectReady,
+          type: 'krm-controller'
+        }
+      );
+
       await this._onSubjectReady(msg.subject, (msg.data || {}).task);
     } catch(e) {
       logger.info(`failed to handle ${config.kafka.topics.subjectReady} kafka message`, msg, e);
@@ -254,6 +329,16 @@ class KrmController {
       // this method either generates a new task message or creates a new task message
       // if one does not exist.  Note this method will insert new task into mongo.
       let taskMsg = await this._generateTaskMsg(task);
+
+      this.monitor.setMaxMetric(
+        this.metrics.pendingTaskAge.type,
+        'type', 
+        Date.now() - (new Date(taskMsg.time)).getTime(),
+        {
+          type : taskMsg.type,
+          subject: taskMsg.subject
+        }
+      );
 
       // the dependent tasks array is an array of ALL depended tasks.
       // Even children of children.  We only want to add subjects of 
@@ -373,6 +458,16 @@ class KrmController {
     // let topicName = kafka.utils.getTopicName(taskMsg.data.taskDefId);
     // This makes it a pain for tools like ksqlDB...
     // taskMsg.data = JSON.stringify(taskMsg.data);
+
+    this.monitor.setMaxMetric(
+      this.metrics.pendingTaskAge.type,
+      'type', 
+      Date.now() - (new Date(taskMsg.time)).getTime(),
+      {
+        type : taskMsg.type,
+        subject: taskMsg.subject
+      }
+    );
 
     logger.info('Sending task message to '+config.kafka.topics.taskReady+' topic for subject: '+taskMsg.subject);
     this.kafkaProducer.produce({
