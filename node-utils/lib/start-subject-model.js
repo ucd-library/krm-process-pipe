@@ -39,7 +39,7 @@ class StartSubjectModel {
 
     let baseDir = path.parse(path.join(config.fs.nfsRoot, file)).dir;
     await fs.mkdirp(baseDir);
-    await fs.writeFile(path.join(config.fs.nfsRoot, file), data);
+    fs.writeFileSync(path.join(config.fs.nfsRoot, file), data);
 
     let value = {
       id : uuid.v4(),
