@@ -34,11 +34,11 @@ class StartSubjectModel {
     await this.kafkaProducer.connect();
   }
 
-  async send(file, data) {
+  send(file, data) {
     let subject = 'file://'+path.join('/', file);
 
     let baseDir = path.parse(path.join(config.fs.nfsRoot, file)).dir;
-    await fs.mkdirp(baseDir);
+    fs.mkdirpSync(baseDir);
     fs.writeFileSync(path.join(config.fs.nfsRoot, file), data);
 
     let value = {
@@ -54,7 +54,7 @@ class StartSubjectModel {
       logger.info(this.groupId+' sending subject ready to kafka: ', subject)
     }
 
-    await this.kafkaProducer.produce({
+    this.kafkaProducer.produce({
       topic : config.kafka.topics.subjectReady,
       value
     });
